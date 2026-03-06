@@ -43,8 +43,10 @@
 }
 
 .file-tab-modified {
-  color: #e8a87c;
-  font-size: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e8a87c;
   flex-shrink: 0;
 }
 

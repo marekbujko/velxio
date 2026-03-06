@@ -112,7 +112,7 @@ export const EditorPage: React.FC = () => {
 
   return (
     <div className="app">
-      <AppHeader onSaveClick={handleSaveClick} />
+      <AppHeader />
 
       <div className="app-container" ref={containerRef}>
         {/* ── Editor side ── */}
@@ -121,7 +121,7 @@ export const EditorPage: React.FC = () => {
           style={{ width: `${editorWidthPct}%`, display: 'flex', flexDirection: 'row' }}
         >
           {/* File explorer sidebar */}
-          {explorerOpen && <FileExplorer />}
+          {explorerOpen && <FileExplorer onSaveClick={handleSaveClick} />}
 
           {/* Editor main area */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>

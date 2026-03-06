@@ -39,7 +39,7 @@ export const FileTabs: React.FC = () => {
             onClick={() => setActiveFile(file.id)}
             title={file.name}
           >
-            {file.modified && <span className="file-tab-modified">●</span>}
+            {file.modified && <span className="file-tab-modified" title="Unsaved changes" />}
             <span className="file-tab-name">{file.name}</span>
             <button
               className="file-tab-close"

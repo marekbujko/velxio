@@ -1,15 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
-import { useSimulatorStore } from '../../store/useSimulatorStore';
 
-interface AppHeaderProps {
-  onSaveClick: () => void;
-}
+interface AppHeaderProps {}
 
-export const AppHeader: React.FC<AppHeaderProps> = ({ onSaveClick }) => {
-  const serialMonitorOpen = useSimulatorStore((s) => s.serialMonitorOpen);
-  const toggleSerialMonitor = useSimulatorStore((s) => s.toggleSerialMonitor);
+export const AppHeader: React.FC<AppHeaderProps> = () => {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
@@ -54,56 +49,6 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onSaveClick }) => {
           </svg>
           Examples
         </Link>
-
-        <button
-          onClick={toggleSerialMonitor}
-          className="serial-monitor-toggle"
-          title="Toggle Serial Monitor"
-          style={{
-            background: serialMonitorOpen ? '#0e639c' : 'transparent',
-            border: '1px solid #555',
-            color: '#ccc',
-            padding: '4px 10px',
-            borderRadius: 4,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            fontSize: 13,
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2" />
-            <path d="M8 21h8M12 17v4" />
-          </svg>
-          Serial
-        </button>
-
-        {/* Save button */}
-        <button
-          onClick={onSaveClick}
-          title="Save project (Ctrl+S)"
-          style={{
-            background: '#0e639c',
-            border: 'none',
-            color: '#fff',
-            padding: '4px 12px',
-            borderRadius: 4,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 13,
-            fontWeight: 500,
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-            <polyline points="17 21 17 13 7 13 7 21" />
-            <polyline points="7 3 7 8 15 8" />
-          </svg>
-          Save
-        </button>
 
         {/* Auth UI */}
         {user ? (

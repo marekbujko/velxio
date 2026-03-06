@@ -136,7 +136,7 @@ export const EditorToolbar = ({ consoleOpen, setConsoleOpen, compileLogs: _compi
             className="tb-btn tb-btn-stop"
             title="Stop"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none">
               <rect x="3" y="3" width="18" height="18" rx="2" />
             </svg>
           </button>
@@ -195,7 +195,7 @@ export const EditorToolbar = ({ consoleOpen, setConsoleOpen, compileLogs: _compi
             className={`tb-btn tb-btn-output${consoleOpen ? ' tb-btn-output-active' : ''}`}
             title="Toggle Output Console"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="4 17 10 11 4 5" />
               <line x1="12" y1="19" x2="20" y2="19" />
             </svg>

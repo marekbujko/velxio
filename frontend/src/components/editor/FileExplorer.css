@@ -14,7 +14,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 10px 6px;
+  padding: 0 10px;
+  height: 46px;
   color: #9d9d9d;
   font-size: 11px;
   font-weight: 600;
@@ -23,25 +24,48 @@
   flex-shrink: 0;
 }
 
+.file-explorer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .file-explorer-new-btn {
   background: none;
   border: none;
   color: #9d9d9d;
-  font-size: 18px;
-  line-height: 1;
   cursor: pointer;
-  padding: 0 3px;
+  padding: 2px;
   border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
 }
 
 .file-explorer-new-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
+}
+
+.file-explorer-save-btn {
+  background: none;
+  border: none;
+  color: #9d9d9d;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+}
+
+.file-explorer-save-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #4fc3f7;
 }
 
 .file-explorer-list {
@@ -92,8 +116,10 @@
 }
 
 .file-explorer-dot {
-  color: #e8a87c;
-  font-size: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e8a87c;
   flex-shrink: 0;
 }
 

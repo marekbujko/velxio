@@ -2,13 +2,44 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
 import './FileExplorer.css';
 
-function getFileIcon(name: string): string {
+// SVG icons — same style as EditorToolbar (stroke-based, 16x16)
+const IcoFile = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+  </svg>
+);
+
+const IcoHeader = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="9" y1="13" x2="15" y2="13" />
+    <line x1="9" y1="17" x2="13" y2="17" />
+  </svg>
+);
+
+const IcoNewFile = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="12" y1="18" x2="12" y2="12" />
+    <line x1="9" y1="15" x2="15" y2="15" />
+  </svg>
+);
+
+const IcoSave = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+    <polyline points="17 21 17 13 7 13 7 21" />
+    <polyline points="7 3 7 8 15 8" />
+  </svg>
+);
+
+function FileIcon({ name }: { name: string }) {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  if (ext === 'ino') return '⚡';
-  if (['cpp', 'c', 'cc'].includes(ext)) return '📄';
-  if (['h', 'hpp'].includes(ext)) return '📋';
-  if (ext === 'json') return '{}';
-  return '📝';
+  if (['h', 'hpp'].includes(ext)) return <IcoHeader />;
+  return <IcoFile />;
 }
 
 interface ContextMenu {
@@ -17,7 +48,11 @@ interface ContextMenu {
   y: number;
 }
 
-export const FileExplorer: React.FC = () => {
+interface FileExplorerProps {
+  onSaveClick: () => void;
+}
+
+export const FileExplorer: React.FC<FileExplorerProps> = ({ onSaveClick }) => {
   const { files, activeFileId, openFile, createFile, deleteFile, renameFile } =
     useEditorStore();
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
@@ -94,13 +129,22 @@ export const FileExplorer: React.FC = () => {
     <div className="file-explorer">
       <div className="file-explorer-header">
         <span className="file-explorer-title">WORKSPACE</span>
-        <button
-          className="file-explorer-new-btn"
-          title="New File"
-          onClick={startCreateFile}
-        >
-          +
-        </button>
+        <div className="file-explorer-header-actions">
+          <button
+            className="file-explorer-new-btn"
+            title="New File"
+            onClick={startCreateFile}
+          >
+            <IcoNewFile />
+          </button>
+          <button
+            className="file-explorer-save-btn"
+            title="Save project (Ctrl+S)"
+            onClick={onSaveClick}
+          >
+            <IcoSave />
+          </button>
+        </div>
       </div>
 
       <div className="file-explorer-list">
@@ -113,7 +157,9 @@ export const FileExplorer: React.FC = () => {
             onDoubleClick={() => startRename(file.id)}
             title={`${file.name}${file.modified ? ' (unsaved)' : ''}`}
           >
-            <span className="file-explorer-icon">{getFileIcon(file.name)}</span>
+            <span className="file-explorer-icon">
+              <FileIcon name={file.name} />
+            </span>
 
             {renamingId === file.id ? (
               <input
@@ -133,16 +179,16 @@ export const FileExplorer: React.FC = () => {
             )}
 
             {file.modified && (
-              <span className="file-explorer-dot" title="Unsaved changes">
-                ●
-              </span>
+              <span className="file-explorer-dot" title="Unsaved changes" />
             )}
           </div>
         ))}
 
         {creatingFile && (
           <div className="file-explorer-item file-explorer-item-new">
-            <span className="file-explorer-icon">⚡</span>
+            <span className="file-explorer-icon">
+              <IcoFile />
+            </span>
             <input
               ref={newFileInputRef}
               className="file-explorer-rename-input"

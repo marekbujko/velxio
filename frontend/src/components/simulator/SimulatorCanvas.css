@@ -85,6 +85,35 @@
   cursor: not-allowed;
 }
 
+/* ── Serial Monitor button ───────────────────────── */
+.canvas-serial-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid #3a4a5a;
+  border-radius: 5px;
+  color: #9d9d9d;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.canvas-serial-btn:hover {
+  border-color: #007acc;
+  color: #ccc;
+}
+
+.canvas-serial-btn-active {
+  background: #0e3a5a;
+  border-color: #007acc;
+  color: #4fc3f7;
+}
+
 /* ── Component count ─────────────────────────────── */
 .component-count {
   display: flex;
