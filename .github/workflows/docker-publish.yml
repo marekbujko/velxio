@@ -2,7 +2,7 @@ name: Publish Docker Image
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
     # You can also trigger this on release tags:
     # tags: [ 'v*.*.*' ]
 
