@@ -168,9 +168,6 @@
   top: 0;
   left: 0;
   transform-origin: 0 0;
-  /* min size so content is reachable even when empty */
-  width: 4000px;
-  height: 3000px;
 }
 
 /* ── Components area ─────────────────────────────── */
