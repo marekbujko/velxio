@@ -166,15 +166,51 @@ class VirtualSSD1306 implements I2CDevice {
     this.syncElement();
   }
 
+  /**
+   * Push the 1-bit GDDRAM buffer to the wokwi-ssd1306 web component.
+   *
+   * wokwi-ssd1306 API:
+   *   - `element.imageData` — a 128×64 ImageData (RGBA, 4 bytes/pixel)
+   *   - `element.redraw()` — flushes imageData to the internal canvas
+   *
+   * GDDRAM layout: 8 pages × 128 columns.
+   * Each byte holds 8 vertical pixels; bit 0 = topmost pixel in the page.
+   */
   private syncElement(): void {
     const el = this.element as any;
     if (!el) return;
-    // wokwi-ssd1306 exposes a Uint8Array `buffer` property
-    if (el.buffer !== undefined) {
-      el.buffer = new Uint8Array(this.buffer);
+
+    // Obtain the ImageData object (initialised by wokwi-ssd1306 constructor)
+    let imgData: ImageData | undefined = el.imageData;
+    if (!imgData || imgData.width !== 128 || imgData.height !== 64) {
+      try {
+        imgData = new ImageData(128, 64);
+      } catch {
+        return;
+      }
     }
-    if (typeof el.renderFrame === 'function') {
-      el.renderFrame(this.buffer);
+
+    const px = imgData.data; // Uint8ClampedArray, RGBA
+
+    for (let page = 0; page < 8; page++) {
+      for (let col = 0; col < 128; col++) {
+        const byte = this.buffer[page * 128 + col];
+        for (let bit = 0; bit < 8; bit++) {
+          const row  = page * 8 + bit;
+          const lit  = (byte >> bit) & 1;
+          const idx  = (row * 128 + col) * 4;
+          // Lit pixel: bright cyan-white typical of OLED; off pixel: full black
+          px[idx]     = lit ? 200 : 0;   // R
+          px[idx + 1] = lit ? 230 : 0;   // G
+          px[idx + 2] = lit ? 255 : 0;   // B
+          px[idx + 3] = 255;             // A
+        }
+      }
+    }
+
+    el.imageData = imgData;
+    if (typeof el.redraw === 'function') {
+      el.redraw();
     }
   }
 }
