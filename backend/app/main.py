@@ -33,6 +33,11 @@ app = FastAPI(
     description="Compilation and project management API",
     version="1.0.0",
     lifespan=lifespan,
+    # Moved from /docs to /api/docs so the frontend /docs/* documentation
+    # routes are served by the React SPA without any nginx conflict.
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
 )
 
 # CORS for local development
@@ -62,7 +67,7 @@ def root():
     return {
         "message": "Arduino Emulator API",
         "version": "1.0.0",
-        "docs": "/docs",
+        "docs": "/api/docs",
     }
 
 

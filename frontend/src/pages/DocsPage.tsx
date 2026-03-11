@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import './DocsPage.css';
 
 const GITHUB_URL = 'https://github.com/davidmonterocrespo24/velxio';
+const BASE_URL = 'https://velxio.dev';
+const AUTHOR = { '@type': 'Person', name: 'David Montero Crespo', url: 'https://github.com/davidmonterocrespo24' } as const;
 
 /* ── Icons ─────────────────────────────────────────────── */
 const IcoChip = () => (
@@ -21,7 +23,28 @@ const IcoGitHub = () => (
 );
 
 /* ── Doc sections ──────────────────────────────────────── */
-type SectionId = 'intro' | 'getting-started' | 'emulator' | 'components' | 'roadmap';
+type SectionId =
+  | 'intro'
+  | 'getting-started'
+  | 'emulator'
+  | 'components'
+  | 'roadmap'
+  | 'architecture'
+  | 'wokwi-libs'
+  | 'mcp'
+  | 'setup';
+
+const VALID_SECTIONS: SectionId[] = [
+  'intro',
+  'getting-started',
+  'emulator',
+  'components',
+  'roadmap',
+  'architecture',
+  'wokwi-libs',
+  'mcp',
+  'setup',
+];
 
 interface NavItem {
   id: SectionId;
@@ -33,8 +56,53 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'getting-started', label: 'Getting Started' },
   { id: 'emulator', label: 'Emulator Architecture' },
   { id: 'components', label: 'Components Reference' },
+  { id: 'architecture', label: 'Project Architecture' },
+  { id: 'wokwi-libs', label: 'Wokwi Libraries' },
+  { id: 'mcp', label: 'MCP Server' },
+  { id: 'setup', label: 'Project Status' },
   { id: 'roadmap', label: 'Roadmap' },
 ];
+
+/* ── Per-section SEO metadata ──────────────────────────── */
+interface SectionMeta { title: string; description: string; }
+const SECTION_META: Record<SectionId, SectionMeta> = {
+  'intro': {
+    title: 'Introduction — Velxio Documentation',
+    description: 'Learn about Velxio, the free open-source Arduino emulator with real AVR8 and RP2040 CPU emulation and 48+ interactive electronic components.',
+  },
+  'getting-started': {
+    title: 'Getting Started — Velxio Documentation',
+    description: 'Get started with Velxio: use the hosted editor, self-host with Docker, or set up a local development environment. Simulate your first Arduino sketch in minutes.',
+  },
+  'emulator': {
+    title: 'Emulator Architecture — Velxio Documentation',
+    description: 'How Velxio emulates AVR8 (ATmega328p) and RP2040 CPUs. Covers the execution loop, peripherals (GPIO, Timers, USART, ADC, SPI, I2C), and pin mapping.',
+  },
+  'components': {
+    title: 'Components Reference — Velxio Documentation',
+    description: 'Full reference for all 48+ interactive electronic components in Velxio: LEDs, displays, sensors, buttons, potentiometers, and more. Includes wiring and property details.',
+  },
+  'roadmap': {
+    title: 'Roadmap — Velxio Documentation',
+    description: "Velxio's feature roadmap: what's implemented, what's in progress, and what's planned for future releases.",
+  },
+  'architecture': {
+    title: 'Project Architecture — Velxio Documentation',
+    description: 'Detailed overview of the Velxio system architecture: frontend, backend, AVR8 emulation pipeline, data flows, Zustand stores, and wire system.',
+  },
+  'wokwi-libs': {
+    title: 'Wokwi Libraries — Velxio Documentation',
+    description: 'How Velxio integrates the official Wokwi open-source libraries: avr8js, wokwi-elements, and rp2040js. Covers configuration, updates, and the 48 available components.',
+  },
+  'mcp': {
+    title: 'MCP Server — Velxio Documentation',
+    description: 'Velxio MCP Server reference: integrate AI agents (Claude, Cursor) with Velxio via Model Context Protocol. Covers tools, transports, circuit format, and example walkthroughs.',
+  },
+  'setup': {
+    title: 'Project Status — Velxio Documentation',
+    description: 'Complete status of all implemented Velxio features: AVR emulation, component system, wire system, code editor, example projects, and next steps.',
+  },
+};
 
 /* ── Section content ───────────────────────────────────── */
 const IntroSection: React.FC = () => (
@@ -451,21 +519,628 @@ const RoadmapSection: React.FC = () => (
   </div>
 );
 
-const SECTION_MAP: Record<SectionId, React.FC> = {
+/* ── Architecture Section ─────────────────────────────── */
+const ArchitectureSection: React.FC = () => (
+  <div className="docs-section">
+    <span className="docs-label">// system design</span>
+    <h1>Project Architecture</h1>
+    <p>
+      Velxio is a fully local Arduino emulator using official Wokwi repositories for maximum
+      compatibility. It features real AVR8 CPU emulation, 48+ interactive electronic components,
+      a comprehensive wire system, and a build-time component discovery pipeline.
+    </p>
+
+    <h2>High-Level Overview</h2>
+    <pre><code>{`Browser (React + Vite)
+  ├── Monaco Editor ──► useEditorStore (Zustand)
+  ├── SimulatorCanvas ──► useSimulatorStore (Zustand)
+  │     ├── AVRSimulator (avr8js)   16 MHz AVR8 CPU
+  │     ├── RP2040Simulator (rp2040js)
+  │     ├── PinManager              pin → component mapping
+  │     ├── PartSimulationRegistry  16 interactive parts
+  │     └── 48+ wokwi-elements      Lit Web Components
+  └── HTTP (Axios) ──► FastAPI Backend (port 8001)
+        └── ArduinoCLIService ──► arduino-cli subprocess`}</code></pre>
+
+    <h2>Data Flows</h2>
+
+    <h3>1. Compilation</h3>
+    <pre><code>{`Click "Compile"
+  → EditorToolbar reads all workspace files
+  → POST /api/compile/  { files, board_fqbn }
+  → Backend: ArduinoCLIService writes temp dir
+  → arduino-cli compile --fqbn <board> --output-dir build/
+  → Returns hex_content (Intel HEX string)
+  → useSimulatorStore.setCompiledHex() → loadHex()`}</code></pre>
+
+    <h3>2. Simulation Loop</h3>
+    <pre><code>{`Click "Run"
+  → AVRSimulator.start()
+  → requestAnimationFrame loop @ ~60 FPS
+  → Each frame: Math.floor(267 000 × speed) cycles
+    ├── avrInstruction(cpu)   — decode + execute one AVR instruction
+    └── cpu.tick()            — advance Timer0/1/2, USART, ADC
+  → PORTB/C/D write listeners fire
+  → PinManager.updatePort() → per-pin callbacks
+  → PartSimulationRegistry.onPinStateChange()
+  → wokwi-elements update visually`}</code></pre>
+
+    <h3>3. Input Components</h3>
+    <pre><code>{`User presses button on canvas
+  → wokwi web component fires 'button-press' event
+  → DynamicComponent catches event
+  → PartSimulationRegistry.attachEvents() handler
+  → AVRSimulator.setPinState(arduinoPin, LOW)
+  → AVRIOPort.setPin() injects external pin state
+  → CPU reads pin in next instruction`}</code></pre>
+
+    <h2>Key Frontend Stores (Zustand)</h2>
+    <table>
+      <thead>
+        <tr><th>Store</th><th>Key State</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>useEditorStore</code></td><td>files[], activeFileId</td><td>Multi-file Monaco workspace</td></tr>
+        <tr><td><code>useSimulatorStore</code></td><td>simulator, components, wires, running</td><td>Simulation + canvas state</td></tr>
+        <tr><td><code>useAuthStore</code></td><td>user, token</td><td>Auth (persisted localStorage)</td></tr>
+        <tr><td><code>useProjectStore</code></td><td>projectId, slug</td><td>Currently open project</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Backend Routes</h2>
+    <table>
+      <thead>
+        <tr><th>Route</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>POST /api/compile/</code></td><td>Compile sketch files → Intel HEX / UF2</td></tr>
+        <tr><td><code>GET  /api/compile/boards</code></td><td>List available boards</td></tr>
+        <tr><td><code>GET/POST /api/auth/*</code></td><td>Email/password + Google OAuth</td></tr>
+        <tr><td><code>GET/POST /api/projects/*</code></td><td>CRUD project persistence (SQLite)</td></tr>
+        <tr><td><code>GET  /api/libraries/*</code></td><td>Arduino Library Manager integration</td></tr>
+        <tr><td><code>GET  /health</code></td><td>Health check endpoint</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Wire System</h2>
+    <p>Wires are stored as objects with start/end endpoints tied to component pin positions:</p>
+    <pre><code>{`{
+  id: string
+  start: { componentId, pinName, x, y }
+  end:   { componentId, pinName, x, y }
+  color: string
+  signalType: 'digital' | 'analog' | 'power-vcc' | 'power-gnd'
+}`}</code></pre>
+    <ul>
+      <li>Orthogonal routing — no diagonal segments</li>
+      <li>Segment drag — drag perpendicular to segment orientation</li>
+      <li>Auto-update — wire positions recalculate when components move</li>
+      <li>Grid snapping — 20 px grid for all wire endpoints</li>
+    </ul>
+
+    <div className="docs-callout">
+      <strong>Full details:</strong>{' '}
+      See{' '}
+      <a href={`${GITHUB_URL}/blob/master/docs/ARCHITECTURE.md`} target="_blank" rel="noopener noreferrer">
+        docs/ARCHITECTURE.md
+      </a>{' '}
+      in the repository.
+    </div>
+  </div>
+);
+
+/* ── Wokwi Libraries Section ──────────────────────────── */
+const WokwiLibsSection: React.FC = () => (
+  <div className="docs-section">
+    <span className="docs-label">// open-source libs</span>
+    <h1>Wokwi Libraries</h1>
+    <p>
+      Velxio uses official Wokwi open-source repositories cloned locally in <code>wokwi-libs/</code>.
+      This gives you up-to-date, compatible emulation engines and visual components without npm registry
+      dependencies.
+    </p>
+
+    <h2>Cloned Repositories</h2>
+    <table>
+      <thead>
+        <tr><th>Library</th><th>Location</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><a href="https://github.com/wokwi/wokwi-elements" target="_blank" rel="noopener noreferrer">wokwi-elements</a></td>
+          <td><code>wokwi-libs/wokwi-elements/</code></td>
+          <td>48+ Lit Web Components (LEDs, LCDs, sensors, buttons…)</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/wokwi/avr8js" target="_blank" rel="noopener noreferrer">avr8js</a></td>
+          <td><code>wokwi-libs/avr8js/</code></td>
+          <td>ATmega328p / ATmega2560 CPU emulator at 16 MHz</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/wokwi/rp2040js" target="_blank" rel="noopener noreferrer">rp2040js</a></td>
+          <td><code>wokwi-libs/rp2040js/</code></td>
+          <td>Raspberry Pi Pico (RP2040) emulator</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Vite Configuration</h2>
+    <p><code>frontend/vite.config.ts</code> uses path aliases so imports resolve to the local builds:</p>
+    <pre><code>{`resolve: {
+  alias: {
+    'avr8js':          '../wokwi-libs/avr8js/dist/esm',
+    '@wokwi/elements': '../wokwi-libs/wokwi-elements/dist/esm',
+  },
+}`}</code></pre>
+
+    <h2>Updating the Libraries</h2>
+    <h3>All at once (recommended)</h3>
+    <pre><code>{`# Windows
+update-wokwi-libs.bat`}</code></pre>
+
+    <h3>Manually</h3>
+    <pre><code>{`cd wokwi-libs/wokwi-elements
+git pull origin main
+npm install && npm run build
+
+cd ../avr8js
+git pull origin main
+npm install && npm run build
+
+cd ../rp2040js
+git pull origin main
+npm install && npm run build`}</code></pre>
+
+    <h3>After updating wokwi-elements</h3>
+    <p>Regenerate component metadata so new components appear in the picker:</p>
+    <pre><code>{`cd frontend
+npx tsx ../scripts/generate-component-metadata.ts`}</code></pre>
+
+    <h2>Available Wokwi Components (48)</h2>
+    <table>
+      <thead>
+        <tr><th>Category</th><th>Components</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Boards</td><td>Arduino Uno, Mega, Nano, ESP32 DevKit</td></tr>
+        <tr><td>Sensors</td><td>DHT22, HC-SR04, PIR, Photoresistor, NTC, Joystick</td></tr>
+        <tr><td>Displays</td><td>LCD 16×2, LCD 20×4, 7-Segment</td></tr>
+        <tr><td>Input</td><td>Push button, 6mm button, Slide switch, DIP switch 8, Potentiometer</td></tr>
+        <tr><td>Output</td><td>LED, RGB LED, LED bar graph, Buzzer, NeoPixel</td></tr>
+        <tr><td>Motors</td><td>Servo, Stepper motor</td></tr>
+        <tr><td>Passive</td><td>Resistor, Slide potentiometer, LED ring, Matrix keypad</td></tr>
+        <tr><td>Other</td><td>IR receiver, DS1307 RTC, breadboards, etc.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>How avr8js Powers the Simulation</h2>
+    <pre><code>{`import { CPU, avrInstruction, AVRTimer, AVRUSART, AVRADC, AVRIOPort } from 'avr8js';
+
+const cpu   = new CPU(programMemory);          // ATmega328p at 16 MHz
+const portB = new AVRIOPort(cpu, portBConfig); // digital pins 8-13
+const portC = new AVRIOPort(cpu, portCConfig); // analog pins A0-A5
+const portD = new AVRIOPort(cpu, portDConfig); // digital pins 0-7
+
+function runFrame() {
+  const cycles = Math.floor(267_000 * speed);
+  for (let i = 0; i < cycles; i++) {
+    avrInstruction(cpu); // execute one AVR instruction
+    cpu.tick();          // advance timers + peripherals
+  }
+  requestAnimationFrame(runFrame);
+}`}</code></pre>
+
+    <div className="docs-callout">
+      <strong>Full details:</strong>{' '}
+      See{' '}
+      <a href={`${GITHUB_URL}/blob/master/docs/WOKWI_LIBS.md`} target="_blank" rel="noopener noreferrer">
+        docs/WOKWI_LIBS.md
+      </a>{' '}
+      in the repository.
+    </div>
+  </div>
+);
+
+/* ── MCP Server Section ───────────────────────────────── */
+const McpSection: React.FC = () => (
+  <div className="docs-section">
+    <span className="docs-label">// AI integration</span>
+    <h1>MCP Server</h1>
+    <p>
+      Velxio exposes a{' '}
+      <a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener noreferrer">
+        Model Context Protocol
+      </a>{' '}
+      (MCP) server that lets AI agents (Claude, Cursor, and others) create circuits,
+      generate code, and compile Arduino sketches directly.
+    </p>
+
+    <h2>Available Tools</h2>
+    <table>
+      <thead>
+        <tr><th>Tool</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>compile_project</code></td><td>Compile Arduino sketch files → Intel HEX / binary</td></tr>
+        <tr><td><code>run_project</code></td><td>Compile and mark artifact as simulation-ready</td></tr>
+        <tr><td><code>import_wokwi_json</code></td><td>Parse a Wokwi <code>diagram.json</code> → Velxio circuit</td></tr>
+        <tr><td><code>export_wokwi_json</code></td><td>Serialise a Velxio circuit → Wokwi <code>diagram.json</code></td></tr>
+        <tr><td><code>create_circuit</code></td><td>Create a new circuit definition</td></tr>
+        <tr><td><code>update_circuit</code></td><td>Merge changes into an existing circuit</td></tr>
+        <tr><td><code>generate_code_files</code></td><td>Generate starter <code>.ino</code> code from a circuit</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Transport Options</h2>
+
+    <h3>1. stdio — Claude Desktop / CLI agents</h3>
+    <pre><code>{`cd backend
+python mcp_server.py`}</code></pre>
+    <p>Claude Desktop config (<code>~/.claude/claude_desktop_config.json</code>):</p>
+    <pre><code>{`{
+  "mcpServers": {
+    "velxio": {
+      "command": "python",
+      "args": ["/absolute/path/to/velxio/backend/mcp_server.py"]
+    }
+  }
+}`}</code></pre>
+
+    <h3>2. SSE / HTTP — Cursor IDE / web agents</h3>
+    <pre><code>{`cd backend
+python mcp_sse_server.py --port 8002`}</code></pre>
+    <p>MCP client config:</p>
+    <pre><code>{`{
+  "mcpServers": {
+    "velxio": { "url": "http://localhost:8002/sse" }
+  }
+}`}</code></pre>
+
+    <h2>Circuit Data Format</h2>
+    <p>Velxio circuits are plain JSON objects:</p>
+    <pre><code>{`{
+  "board_fqbn": "arduino:avr:uno",
+  "version": 1,
+  "components": [
+    { "id": "led1", "type": "wokwi-led", "left": 200, "top": 100,
+      "rotate": 0, "attrs": { "color": "red" } }
+  ],
+  "connections": [
+    { "from_part": "uno", "from_pin": "13",
+      "to_part": "led1", "to_pin": "A", "color": "green" }
+  ]
+}`}</code></pre>
+
+    <h3>Supported Board FQBNs</h3>
+    <table>
+      <thead>
+        <tr><th>Board</th><th>FQBN</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Arduino Uno</td><td><code>arduino:avr:uno</code></td></tr>
+        <tr><td>Arduino Mega</td><td><code>arduino:avr:mega</code></td></tr>
+        <tr><td>Arduino Nano</td><td><code>arduino:avr:nano</code></td></tr>
+        <tr><td>Raspberry Pi Pico</td><td><code>rp2040:rp2040:rpipico</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2>Example — Blink LED from Scratch</h2>
+    <pre><code>{`// Step 1 — Create a circuit
+{
+  "tool": "create_circuit",
+  "arguments": {
+    "board_fqbn": "arduino:avr:uno",
+    "components": [
+      { "id": "led1", "type": "wokwi-led",
+        "left": 150, "top": 100, "attrs": { "color": "red" } },
+      { "id": "r1", "type": "wokwi-resistor",
+        "left": 150, "top": 180, "attrs": { "value": "220" } }
+    ],
+    "connections": [
+      { "from_part": "uno", "from_pin": "13",
+        "to_part": "led1", "to_pin": "A", "color": "green" },
+      { "from_part": "led1", "from_pin": "C",
+        "to_part": "r1",   "to_pin": "1", "color": "black" },
+      { "from_part": "r1",   "from_pin": "2",
+        "to_part": "uno",  "to_pin": "GND.1", "color": "black" }
+    ]
+  }
+}
+
+// Step 2 — Generate code
+{
+  "tool": "generate_code_files",
+  "arguments": {
+    "circuit": "<result from Step 1>",
+    "sketch_name": "blink",
+    "extra_instructions": "Blink the red LED every 500ms"
+  }
+}
+
+// Step 3 — Compile
+{
+  "tool": "compile_project",
+  "arguments": {
+    "files": [
+      {
+        "name": "blink.ino",
+        "content": "void setup(){pinMode(13,OUTPUT);}\\nvoid loop(){digitalWrite(13,HIGH);delay(500);digitalWrite(13,LOW);delay(500);}"
+      }
+    ],
+    "board": "arduino:avr:uno"
+  }
+}`}</code></pre>
+
+    <h2>Setup</h2>
+    <pre><code>{`cd backend
+pip install -r requirements.txt
+
+# Ensure arduino-cli is installed
+arduino-cli version
+arduino-cli core update-index
+arduino-cli core install arduino:avr
+
+# Run tests
+python -m pytest tests/test_mcp_tools.py -v`}</code></pre>
+
+    <div className="docs-callout">
+      <strong>Full reference:</strong>{' '}
+      See{' '}
+      <a href={`${GITHUB_URL}/blob/master/docs/MCP.md`} target="_blank" rel="noopener noreferrer">
+        docs/MCP.md
+      </a>{' '}
+      in the repository.
+    </div>
+  </div>
+);
+
+/* ── Setup / Project Status Section ──────────────────── */
+const SetupSection: React.FC = () => (
+  <div className="docs-section">
+    <span className="docs-label">// project status</span>
+    <h1>Project Status</h1>
+    <p>A comprehensive overview of all features currently implemented in Velxio.</p>
+
+    <h2>AVR Emulation (avr8js)</h2>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>ATmega328p CPU at 16 MHz</td><td>✅ Working</td></tr>
+        <tr><td>Timer0, Timer1, Timer2</td><td>✅ Working</td></tr>
+        <tr><td>USART (Serial)</td><td>✅ Working</td></tr>
+        <tr><td>ADC (<code>analogRead</code>)</td><td>✅ Working</td></tr>
+        <tr><td>Full GPIO (PORTB / PORTC / PORTD)</td><td>✅ Working</td></tr>
+        <tr><td>~60 FPS loop (267k cycles/frame)</td><td>✅ Working</td></tr>
+        <tr><td>Speed control (0.1× – 10×)</td><td>✅ Working</td></tr>
+        <tr><td>PWM monitoring (6 channels)</td><td>✅ Working</td></tr>
+        <tr><td>External pin injection (inputs)</td><td>✅ Working</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Component System (48+)</h2>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Automatic discovery via AST</td><td>✅ 48 components detected</td></tr>
+        <tr><td>ComponentPickerModal with search</td><td>✅ Working</td></tr>
+        <tr><td>9 categories with filters</td><td>✅ Working</td></tr>
+        <tr><td>Generic DynamicComponent renderer</td><td>✅ Working</td></tr>
+        <tr><td>Drag-and-drop on canvas</td><td>✅ Working</td></tr>
+        <tr><td>Rotation (90° increments)</td><td>✅ Working</td></tr>
+        <tr><td>Properties dialog (single-click)</td><td>✅ Working</td></tr>
+        <tr><td>Pin overlay (clickable cyan dots)</td><td>✅ Working</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Interactive Parts (16 simulated)</h2>
+    <table>
+      <thead><tr><th>Part</th><th>Type</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>LED</td><td>Output</td><td>✅</td></tr>
+        <tr><td>RGB LED</td><td>Output (digital + PWM)</td><td>✅</td></tr>
+        <tr><td>LED Bar Graph (10 LEDs)</td><td>Output</td><td>✅</td></tr>
+        <tr><td>7-Segment Display</td><td>Output</td><td>✅</td></tr>
+        <tr><td>Pushbutton</td><td>Input</td><td>✅</td></tr>
+        <tr><td>Pushbutton 6mm</td><td>Input</td><td>✅</td></tr>
+        <tr><td>Slide Switch</td><td>Input</td><td>✅</td></tr>
+        <tr><td>DIP Switch 8</td><td>Input</td><td>✅</td></tr>
+        <tr><td>Potentiometer</td><td>Input (ADC)</td><td>✅</td></tr>
+        <tr><td>Slide Potentiometer</td><td>Input (ADC)</td><td>✅</td></tr>
+        <tr><td>Photoresistor</td><td>Input / Output</td><td>✅</td></tr>
+        <tr><td>Analog Joystick</td><td>Input (ADC + digital)</td><td>✅</td></tr>
+        <tr><td>Servo</td><td>Output</td><td>✅</td></tr>
+        <tr><td>Buzzer</td><td>Output (Web Audio)</td><td>✅</td></tr>
+        <tr><td>LCD 1602</td><td>Output (full HD44780)</td><td>✅</td></tr>
+        <tr><td>LCD 2004</td><td>Output (full HD44780)</td><td>✅</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Wire System</h2>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Pin-to-pin creation with click</td><td>✅ Working</td></tr>
+        <tr><td>Real-time preview (green dashed)</td><td>✅ Working</td></tr>
+        <tr><td>Orthogonal routing (no diagonals)</td><td>✅ Working</td></tr>
+        <tr><td>Segment editing (perpendicular drag)</td><td>✅ Working</td></tr>
+        <tr><td>8 colours by signal type</td><td>✅ Working</td></tr>
+        <tr><td>Auto-update when moving components</td><td>✅ Working</td></tr>
+        <tr><td>Grid snapping (20 px)</td><td>✅ Working</td></tr>
+        <tr><td>Wire selection and deletion</td><td>✅ Working</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Example Projects (8)</h2>
+    <table>
+      <thead><tr><th>Example</th><th>Category</th><th>Difficulty</th></tr></thead>
+      <tbody>
+        <tr><td>Blink LED</td><td>Basics</td><td>Beginner</td></tr>
+        <tr><td>Traffic Light</td><td>Basics</td><td>Beginner</td></tr>
+        <tr><td>Button Control</td><td>Basics</td><td>Beginner</td></tr>
+        <tr><td>Fade LED (PWM)</td><td>Basics</td><td>Beginner</td></tr>
+        <tr><td>Serial Hello World</td><td>Communication</td><td>Beginner</td></tr>
+        <tr><td>RGB LED Colors</td><td>Basics</td><td>Intermediate</td></tr>
+        <tr><td>Simon Says Game</td><td>Games</td><td>Advanced</td></tr>
+        <tr><td>LCD 20×4 Display</td><td>Displays</td><td>Intermediate</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Troubleshooting</h2>
+    <table>
+      <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Components not displayed</td>
+          <td><pre style={{margin:0}}><code>cd wokwi-libs/wokwi-elements{'\n'}npm run build</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>Cannot find module 'avr8js'</code></td>
+          <td><pre style={{margin:0}}><code>cd wokwi-libs/avr8js{'\n'}npm install && npm run build</code></pre></td>
+        </tr>
+        <tr>
+          <td>LED doesn't blink</td>
+          <td>Compile first, then click Run. Check pin assignment in the component property dialog.</td>
+        </tr>
+        <tr>
+          <td>New component not in picker</td>
+          <td><pre style={{margin:0}}><code>cd frontend{'\n'}npx tsx ../scripts/generate-component-metadata.ts</code></pre></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div className="docs-callout">
+      <strong>Full status:</strong>{' '}
+      See{' '}
+      <a href={`${GITHUB_URL}/blob/master/docs/SETUP_COMPLETE.md`} target="_blank" rel="noopener noreferrer">
+        docs/SETUP_COMPLETE.md
+      </a>{' '}
+      in the repository.
+    </div>
+  </div>
+);
   intro: IntroSection,
   'getting-started': GettingStartedSection,
   emulator: EmulatorSection,
   components: ComponentsSection,
   roadmap: RoadmapSection,
+  architecture: ArchitectureSection,
+  'wokwi-libs': WokwiLibsSection,
+  mcp: McpSection,
+  setup: SetupSection,
 };
 
 /* ── Page ─────────────────────────────────────────────── */
 export const DocsPage: React.FC = () => {
-  const [activeSection, setActiveSection] = useState<SectionId>('intro');
+  const { section } = useParams<{ section?: string }>();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
 
+  // Derive active section from URL; fall back to 'intro'
+  const activeSection: SectionId =
+    section && VALID_SECTIONS.includes(section as SectionId)
+      ? (section as SectionId)
+      : 'intro';
+
+  // Redirect bare /docs → /docs/intro so every section has a canonical URL
+  useEffect(() => {
+    if (!section) {
+      navigate('/docs/intro', { replace: true });
+    }
+  }, [section, navigate]);
+
+  // Capture the original <head> values once on mount and restore them on unmount
+  useEffect(() => {
+    const origTitle = document.title;
+
+    // Helper to capture an element and its original attribute value
+    const captureAttr = <E extends Element>(selector: string, attr: string): [E | null, string] => {
+      const el = document.querySelector<E>(selector);
+      return [el, el?.getAttribute(attr) ?? ''];
+    };
+
+    const [descEl, origDesc] = captureAttr<HTMLMetaElement>('meta[name="description"]', 'content');
+    const [canonicalEl, origCanonical] = captureAttr<HTMLLinkElement>('link[rel="canonical"]', 'href');
+    const [ogTitleEl, origOgTitle] = captureAttr<HTMLMetaElement>('meta[property="og:title"]', 'content');
+    const [ogDescEl, origOgDesc] = captureAttr<HTMLMetaElement>('meta[property="og:description"]', 'content');
+    const [ogUrlEl, origOgUrl] = captureAttr<HTMLMetaElement>('meta[property="og:url"]', 'content');
+    const [twTitleEl, origTwTitle] = captureAttr<HTMLMetaElement>('meta[name="twitter:title"]', 'content');
+    const [twDescEl, origTwDesc] = captureAttr<HTMLMetaElement>('meta[name="twitter:description"]', 'content');
+
+    return () => {
+      document.title = origTitle;
+      descEl?.setAttribute('content', origDesc);
+      canonicalEl?.setAttribute('href', origCanonical);
+      ogTitleEl?.setAttribute('content', origOgTitle);
+      ogDescEl?.setAttribute('content', origOgDesc);
+      ogUrlEl?.setAttribute('content', origOgUrl);
+      twTitleEl?.setAttribute('content', origTwTitle);
+      twDescEl?.setAttribute('content', origTwDesc);
+      document.getElementById('docs-jsonld')?.remove();
+    };
+  }, []); // runs once on mount; cleanup runs once on unmount
+
+  // Update all head metadata + JSON-LD per section.
+  // No cleanup here — the mount effect above restores defaults on unmount,
+  // and on a section change the next run of this effect immediately overwrites.
+  useEffect(() => {
+    const meta = SECTION_META[activeSection];
+    const pageUrl = `${BASE_URL}/docs/${activeSection}`;
+
+    document.title = meta.title;
+
+    const set = (selector: string, value: string) =>
+      document.querySelector<HTMLMetaElement>(selector)?.setAttribute('content', value);
+
+    set('meta[name="description"]', meta.description);
+    set('meta[property="og:title"]', meta.title);
+    set('meta[property="og:description"]', meta.description);
+    set('meta[property="og:url"]', pageUrl);
+    set('meta[name="twitter:title"]', meta.title);
+    set('meta[name="twitter:description"]', meta.description);
+
+    const canonicalEl = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (canonicalEl) canonicalEl.setAttribute('href', pageUrl);
+
+    // Build the breadcrumb section label for JSON-LD
+    const activeNav = NAV_ITEMS.find((i) => i.id === activeSection);
+    const sectionLabel = activeNav?.label ?? activeSection;
+
+    // Inject / update JSON-LD structured data for this doc page
+    const ldId = 'docs-jsonld';
+    let ldScript = document.getElementById(ldId) as HTMLScriptElement | null;
+    if (!ldScript) {
+      ldScript = document.createElement('script');
+      ldScript.id = ldId;
+      ldScript.type = 'application/ld+json';
+      document.head.appendChild(ldScript);
+    }
+    ldScript.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'TechArticle',
+          headline: meta.title,
+          description: meta.description,
+          url: pageUrl,
+          isPartOf: { '@type': 'WebSite', url: `${BASE_URL}/`, name: 'Velxio' },
+          inLanguage: 'en-US',
+          author: AUTHOR,
+        },
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: `${BASE_URL}/` },
+            { '@type': 'ListItem', position: 2, name: 'Documentation', item: `${BASE_URL}/docs/intro` },
+            { '@type': 'ListItem', position: 3, name: sectionLabel, item: pageUrl },
+          ],
+        },
+      ],
+    });
+  }, [activeSection]);
+
   const ActiveContent = SECTION_MAP[activeSection];
+  const activeIdx = NAV_ITEMS.findIndex((i) => i.id === activeSection);
 
   return (
     <div className="docs-page">
@@ -509,13 +1184,14 @@ export const DocsPage: React.FC = () => {
           <div className="docs-sidebar-title">Documentation</div>
           <nav className="docs-sidebar-nav">
             {NAV_ITEMS.map((item) => (
-              <button
+              <Link
                 key={item.id}
+                to={`/docs/${item.id}`}
                 className={`docs-sidebar-item${activeSection === item.id ? ' docs-sidebar-item--active' : ''}`}
-                onClick={() => { setActiveSection(item.id); setSidebarOpen(false); }}
+                onClick={() => setSidebarOpen(false)}
               >
                 {item.label}
-              </button>
+              </Link>
             ))}
           </nav>
           <div className="docs-sidebar-divider" />
@@ -538,29 +1214,23 @@ export const DocsPage: React.FC = () => {
 
           {/* Prev / Next navigation */}
           <div className="docs-pagination">
-            {NAV_ITEMS.findIndex((i) => i.id === activeSection) > 0 && (
-              <button
+            {activeIdx > 0 && (
+              <Link
+                to={`/docs/${NAV_ITEMS[activeIdx - 1].id}`}
                 className="docs-pagination-btn docs-pagination-btn--prev"
-                onClick={() => {
-                  const idx = NAV_ITEMS.findIndex((i) => i.id === activeSection);
-                  setActiveSection(NAV_ITEMS[idx - 1].id);
-                  window.scrollTo(0, 0);
-                }}
+                onClick={() => window.scrollTo(0, 0)}
               >
-                ← {NAV_ITEMS[NAV_ITEMS.findIndex((i) => i.id === activeSection) - 1].label}
-              </button>
+                ← {NAV_ITEMS[activeIdx - 1].label}
+              </Link>
             )}
-            {NAV_ITEMS.findIndex((i) => i.id === activeSection) < NAV_ITEMS.length - 1 && (
-              <button
+            {activeIdx < NAV_ITEMS.length - 1 && (
+              <Link
+                to={`/docs/${NAV_ITEMS[activeIdx + 1].id}`}
                 className="docs-pagination-btn docs-pagination-btn--next"
-                onClick={() => {
-                  const idx = NAV_ITEMS.findIndex((i) => i.id === activeSection);
-                  setActiveSection(NAV_ITEMS[idx + 1].id);
-                  window.scrollTo(0, 0);
-                }}
+                onClick={() => window.scrollTo(0, 0)}
               >
-                {NAV_ITEMS[NAV_ITEMS.findIndex((i) => i.id === activeSection) + 1].label} →
-              </button>
+                {NAV_ITEMS[activeIdx + 1].label} →
+              </Link>
             )}
           </div>
         </main>
