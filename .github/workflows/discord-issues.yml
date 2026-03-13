@@ -42,6 +42,7 @@ jobs:
           import json, sys
 
           payload = {
+            'content': '@everyone 📢 **New issue reported on Velxio!**',
             'embeds': [{
               'title': f'🐛 Issue #{sys.argv[1]}: {sys.argv[2]}',
               'url': sys.argv[3],
