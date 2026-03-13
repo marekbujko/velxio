@@ -105,10 +105,33 @@ const usart = new AVRUSART(cpu, usart0Config, CLOCK_HZ);
 let socket     = null;
 let txBacklog  = [];           // bytes queued before TCP connects
 
-// Arduino → Pi: forward transmitted bytes
+// Pi → Arduino: software RX queue.
+// avr8js USART has no internal RX buffer — writeByte() drops the byte if
+// rxBusy is true.  onRxComplete fires only in the baud-rate-timed path
+// (immediate=false), NOT when the Arduino reads UDR.  So we drain this
+// queue in runBatch() after each instruction batch when rxBusy is false.
+let rxQueue = [];
+
+function tryInjectRx() {
+  if (rxQueue.length === 0) return;
+  const byte = rxQueue.shift();
+  // writeByte(byte, true) returns false on failure, undefined on success (no return stmt)
+  if (usart.writeByte(byte, true) === false) {
+    // USART RX disabled — put it back; runBatch will retry next tick
+    rxQueue.unshift(byte);
+  }
+}
+
+// Arduino → Pi: forward transmitted bytes (line-buffered logging)
+let _avrTxLineBuf = '';
 usart.onByteTransmit = (byte) => {
   const ch = String.fromCharCode(byte);
-  process.stdout.write(`[AVR->Pi] ${ch === '\n' ? '\\n\n' : ch}`);
+  if (ch === '\n') {
+    if (_avrTxLineBuf.trim()) process.stdout.write(`[AVR->Pi] ${_avrTxLineBuf}\n`);
+    _avrTxLineBuf = '';
+  } else {
+    _avrTxLineBuf += ch;
+  }
 
   if (socket && !socket.destroyed) {
     socket.write(Buffer.from([byte]));
@@ -126,6 +149,10 @@ function runBatch() {
   for (let i = 0; i < BATCH; i++) {
     avrInstruction(cpu);
     cpu.tick();
+  }
+  // Drain RX queue: inject next byte if Arduino has already read the previous one
+  if (rxQueue.length > 0 && !usart.rxBusy) {
+    tryInjectRx();
   }
   setImmediate(runBatch);
 }
@@ -154,13 +181,22 @@ function connectToBroker() {
     }
   });
 
-  // Pi → Arduino: feed received bytes into USART RX
+  // Pi → Arduino: feed received bytes into USART RX via queue (line-buffered log)
+  let _piRxLineBuf = '';
   s.on('data', (chunk) => {
     for (const byte of chunk) {
       const ch = String.fromCharCode(byte);
-      process.stdout.write(`[Pi->AVR] ${ch === '\n' ? '\\n\n' : ch}`);
-      // writeByte(value, immediate=true) bypasses baud-rate timing
-      usart.writeByte(byte, true);
+      if (ch === '\n') {
+        if (_piRxLineBuf.trim()) process.stdout.write(`[Pi->AVR] ${_piRxLineBuf}\n`);
+        _piRxLineBuf = '';
+      } else {
+        _piRxLineBuf += ch;
+      }
+      rxQueue.push(byte);
+    }
+    // Inject first byte immediately if USART is free
+    if (rxQueue.length > 0 && !usart.rxBusy) {
+      tryInjectRx();
     }
   });
 
