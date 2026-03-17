@@ -932,7 +932,7 @@ void loop() {
   {
     id: 'i2c-scanner',
     title: 'I2C Scanner (TWI)',
-    description: 'Scans the I2C bus and reports all devices found. Tests TWI protocol. Virtual devices at 0x48, 0x50, 0x68 should be detected.',
+    description: 'Scans the I2C bus and reports all devices found. SSD1306 OLED (0x3C) is wired on canvas; virtual devices at 0x48, 0x50, 0x68 also respond.',
     category: 'communication',
     difficulty: 'intermediate',
     code: `// I2C Bus Scanner — TWI Protocol Test
@@ -999,8 +999,14 @@ void loop() {
 `,
     components: [
       { type: 'wokwi-arduino-uno', id: 'arduino-uno', x: 100, y: 100, properties: {} },
+      { type: 'wokwi-ssd1306', id: 'ssd1306-1', x: 420, y: 120, properties: {} },
     ],
-    wires: [],
+    wires: [
+      { id: 'wire-sda',  start: { componentId: 'arduino-uno', pinName: 'A4' },   end: { componentId: 'ssd1306-1', pinName: 'DATA' }, color: '#2196f3' },
+      { id: 'wire-scl',  start: { componentId: 'arduino-uno', pinName: 'A5' },   end: { componentId: 'ssd1306-1', pinName: 'CLK'  }, color: '#ff9800' },
+      { id: 'wire-gnd',  start: { componentId: 'arduino-uno', pinName: 'GND.1' }, end: { componentId: 'ssd1306-1', pinName: 'GND'  }, color: '#000000' },
+      { id: 'wire-vcc',  start: { componentId: 'arduino-uno', pinName: '5V' },   end: { componentId: 'ssd1306-1', pinName: 'VIN'  }, color: '#ff0000' },
+    ],
   },
   {
     id: 'i2c-rtc-read',

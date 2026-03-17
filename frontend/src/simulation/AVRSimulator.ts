@@ -255,7 +255,7 @@ export class AVRSimulator {
     this.lastPortBValue = 0;
     this.lastPortCValue = 0;
     this.lastPortDValue = 0;
-    this.lastOcrValues = new Array(this.pwmPins.length).fill(-1);
+    this.lastOcrValues = new Array(this.pwmPins.length).fill(0);
 
     this.setupPinHooks();
 
@@ -503,7 +503,7 @@ export class AVRSimulator {
       this.lastPortBValue = 0;
       this.lastPortCValue = 0;
       this.lastPortDValue = 0;
-      this.lastOcrValues = new Array(this.pwmPins.length).fill(-1);
+      this.lastOcrValues = new Array(this.pwmPins.length).fill(0);
       this.setupPinHooks();
 
       console.log('AVR CPU reset complete');

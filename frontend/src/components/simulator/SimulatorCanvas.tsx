@@ -463,10 +463,12 @@ export const SimulatorCanvas = () => {
       );
       unsubscribers.push(unsubscribe);
 
-      // PWM subscription: update LED opacity when the pin receives a LEDC duty cycle
+      // PWM subscription: update LED opacity when the pin receives a LEDC duty cycle.
+      // duty=0 means no PWM / analogWrite(0) — clear the inline style so the
+      // component keeps its default visibility instead of becoming invisible.
       const pwmUnsub = pinManager.onPwmChange(pin, (_p, duty) => {
         const el = document.getElementById(component.id);
-        if (el) el.style.opacity = String(duty);  // duty is 0.0–1.0
+        if (el) el.style.opacity = duty > 0 ? String(duty) : '';
       });
       unsubscribers.push(pwmUnsub);
     };
