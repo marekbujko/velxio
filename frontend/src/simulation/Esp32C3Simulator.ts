@@ -55,6 +55,25 @@ const ST_UNIT0_OP      = 0x14;  // write bit30 to snapshot counter
 const ST_UNIT0_VAL_LO  = 0x54;  // snapshot value low 32 bits
 const ST_UNIT0_VAL_HI  = 0x58;  // snapshot value high 32 bits
 
+// ── SPI Flash Controllers ────────────────────────────────────────────────────
+// SPI1 @ 0x60002000 — direct flash controller (boot-time flash access)
+// SPI0 @ 0x60003000 — cache SPI controller (transparent flash cache)
+// SPI_MEM_CMD_REG offset 0x00 bits [17–31] are "write 1 to start, HW clears when done".
+const SPI1_BASE  = 0x60002000;
+const SPI0_BASE  = 0x60003000;
+const SPI_SIZE   = 0x200;
+const SPI_CMD    = 0x00;   // SPI_MEM_CMD_REG — command trigger / status
+
+// ── EXTMEM (cache controller) @ 0x600C4000 ──────────────────────────────────
+// Manages ICache enable, invalidation, preload, and MMU configuration.
+const EXTMEM_BASE = 0x600C4000;
+const EXTMEM_SIZE = 0x1000;
+// Key register offsets with "done" status bits that must read as 1:
+const EXTMEM_ICACHE_SYNC_CTRL   = 0x28;  // bit1=SYNC_DONE
+const EXTMEM_ICACHE_PRELOAD_CTRL = 0x34; // bit1=PRELOAD_DONE
+const EXTMEM_ICACHE_AUTOLOAD_CTRL = 0x40; // bit3=AUTOLOAD_DONE
+const EXTMEM_ICACHE_LOCK_CTRL   = 0x1C;  // bit2=LOCK_DONE
+
 // ── Interrupt Controller (no-op passthrough) @ 0x600C5000 ───────────────────
 // FreeRTOS configures source→CPU-int routing here; we handle routing ourselves.
 const INTC_BASE = 0x600C5000;
@@ -91,11 +110,24 @@ export class Esp32C3Simulator {
   private _stIntEna = 0;  // ST_INT_ENA register
   private _stIntRaw = 0;  // ST_INT_RAW register (bit0 = TARGET0 fired)
 
+  /**
+   * Shared peripheral register file — echo-back map.
+   * Peripheral MMIO writes that aren't handled by specific logic are stored
+   * here keyed by word-aligned address so that subsequent reads return the
+   * last written value.  This makes common "write → read-back → verify"
+   * patterns in the ESP-IDF boot succeed without dedicated stubs.
+   */
+  private _periRegs = new Map<number, number>();
+
   // ── Diagnostic state ─────────────────────────────────────────────────────
   private _dbgFrameCount = 0;
   private _dbgTickCount  = 0;
   private _dbgLastMtvec  = 0;
   private _dbgMieEnabled = false;
+  /** Track PC at the start of each tick for stuck-loop detection. */
+  private _dbgPrevTickPc = -1;
+  private _dbgSamePcCount = 0;
+  private _dbgStuckDumped = false;
 
   public pinManager: PinManager;
   public onSerialData: ((ch: string) => void) | null = null;
@@ -148,6 +180,9 @@ export class Esp32C3Simulator {
     this._registerTimerGroup(0x60027000);  // TIMG1
     this._registerTimerGroup(0x6001F000);  // TIMG0 alternative (older ESP-IDF)
     this._registerTimerGroup(0x60020000);  // TIMG1 alternative
+    this._registerSpiFlash(SPI1_BASE);   // SPI1 — direct flash controller
+    this._registerSpiFlash(SPI0_BASE);   // SPI0 — cache SPI controller
+    this._registerExtMem();
     this._registerRomStub();
     this._registerRomStub2();
 
@@ -219,12 +254,14 @@ export class Esp32C3Simulator {
   }
 
   private _registerSysTimer(): void {
+    const peri = this._periRegs;
     this.core.addMmio(SYSTIMER_BASE, SYSTIMER_SIZE,
       (addr) => {
         const off      = addr - SYSTIMER_BASE;
         const wordOff  = off & ~3;
         const byteIdx  = off &  3;
         let word = 0;
+        let handled = true;
         switch (wordOff) {
           case ST_INT_ENA:      word = this._stIntEna; break;
           case ST_INT_RAW:      word = this._stIntRaw; break;
@@ -232,7 +269,12 @@ export class Esp32C3Simulator {
           case ST_UNIT0_OP:     word = (1 << 29); break;  // VALID bit always set
           case ST_UNIT0_VAL_LO: word = (this.core.cycles / 10) >>> 0; break;
           case ST_UNIT0_VAL_HI: word = 0; break;
-          default:              word = 0; break;
+          default:              handled = false; break;
+        }
+        if (!handled) {
+          // Echo last written value for unknown offsets
+          const wordAddr = addr & ~3;
+          word = peri.get(wordAddr) ?? 0;
         }
         return (word >> (byteIdx * 8)) & 0xFF;
       },
@@ -247,17 +289,35 @@ export class Esp32C3Simulator {
           case ST_INT_CLR:
             this._stIntRaw &= ~((val & 0xFF) << shift);
             break;
+          default: {
+            // Echo-back: store the written value
+            const wordAddr = addr & ~3;
+            const prev = peri.get(wordAddr) ?? 0;
+            peri.set(wordAddr, (prev & ~(0xFF << shift)) | ((val & 0xFF) << shift));
+            break;
+          }
         }
       },
     );
   }
 
   /** Interrupt-controller MMIO — FreeRTOS writes source→CPU-int routing here.
-   *  We handle routing via direct triggerInterrupt() calls so this is a no-op. */
+   *  We handle routing via direct triggerInterrupt() calls; unknown offsets
+   *  echo back the last written value so that read-back verification succeeds. */
   private _registerIntCtrl(): void {
+    const peri = this._periRegs;
     this.core.addMmio(INTC_BASE, INTC_SIZE,
-      (_addr) => 0,
-      (_addr, _val) => {},
+      (addr) => {
+        const wordAddr = addr & ~3;
+        const word = peri.get(wordAddr) ?? 0;
+        return (word >>> ((addr & 3) * 8)) & 0xFF;
+      },
+      (addr, val) => {
+        const wordAddr = addr & ~3;
+        const prev = peri.get(wordAddr) ?? 0;
+        const shift = (addr & 3) * 8;
+        peri.set(wordAddr, (prev & ~(0xFF << shift)) | ((val & 0xFF) << shift));
+      },
     );
   }
 
@@ -297,6 +357,7 @@ export class Esp32C3Simulator {
    */
   private _registerTimerGroup(base: number): void {
     const seen = new Set<number>();
+    const peri = this._periRegs;
     this.core.addMmio(base, 0x100,
       (addr) => {
         const off  = addr - base;
@@ -315,24 +376,119 @@ export class Esp32C3Simulator {
           const word = (1000000 << 7); // 0x07A12000
           return (word >>> ((off & 3) * 8)) & 0xFF;
         }
-        return 0;
+        // Echo last written value for all other offsets
+        const wordAddr = addr & ~3;
+        const word = peri.get(wordAddr) ?? 0;
+        return (word >>> ((addr & 3) * 8)) & 0xFF;
       },
-      (_addr, _val) => {},
+      (addr, val) => {
+        const wordAddr = addr & ~3;
+        const prev = peri.get(wordAddr) ?? 0;
+        const shift = (addr & 3) * 8;
+        peri.set(wordAddr, (prev & ~(0xFF << shift)) | ((val & 0xFF) << shift));
+      },
+    );
+  }
+
+  /**
+   * SPI flash controller stub (SPI0 / SPI1).
+   *
+   * SPI_MEM_CMD_REG (offset 0x00) bits [17–31] are "write 1 to start operation,
+   * hardware clears when done".  The firmware polls these bits after triggering
+   * flash reads, writes, erases, etc.  We auto‑clear them so every flash
+   * operation appears to complete instantly.
+   *
+   * Other registers use echo‑back so configuration writes can be read back.
+   */
+  private _registerSpiFlash(base: number): void {
+    const peri = this._periRegs;
+    this.core.addMmio(base, SPI_SIZE,
+      (addr) => {
+        const off     = addr - base;
+        const wordOff = off & ~3;
+        if (wordOff === SPI_CMD) {
+          // Always return 0 for CMD register — all operations are "done"
+          return 0;
+        }
+        // Echo last written value for all other offsets
+        const wordAddr = addr & ~3;
+        const word = peri.get(wordAddr) ?? 0;
+        return (word >>> ((addr & 3) * 8)) & 0xFF;
+      },
+      (addr, val) => {
+        const wordAddr = addr & ~3;
+        const prev = peri.get(wordAddr) ?? 0;
+        const shift = (addr & 3) * 8;
+        peri.set(wordAddr, (prev & ~(0xFF << shift)) | ((val & 0xFF) << shift));
+      },
+    );
+  }
+
+  /**
+   * EXTMEM cache controller stub (0x600C4000).
+   *
+   * The ESP-IDF boot enables ICache, then triggers cache invalidation / sync /
+   * preload operations and polls "done" bits.  We return all "done" bits as 1
+   * so these operations appear to complete instantly.
+   */
+  private _registerExtMem(): void {
+    const peri = this._periRegs;
+    this.core.addMmio(EXTMEM_BASE, EXTMEM_SIZE,
+      (addr) => {
+        const off     = addr - EXTMEM_BASE;
+        const wordOff = off & ~3;
+        // Return "done" bits for operations that the boot polls:
+        let override: number | null = null;
+        switch (wordOff) {
+          case EXTMEM_ICACHE_SYNC_CTRL:    override = (1 << 1); break; // SYNC_DONE
+          case EXTMEM_ICACHE_PRELOAD_CTRL: override = (1 << 1); break; // PRELOAD_DONE
+          case EXTMEM_ICACHE_AUTOLOAD_CTRL: override = (1 << 3); break; // AUTOLOAD_DONE
+          case EXTMEM_ICACHE_LOCK_CTRL:    override = (1 << 2); break; // LOCK_DONE
+        }
+        if (override !== null) {
+          // Merge override bits with any written value so enable bits are preserved
+          const wordAddr = addr & ~3;
+          const word = (peri.get(wordAddr) ?? 0) | override;
+          return (word >>> ((addr & 3) * 8)) & 0xFF;
+        }
+        // Echo last written value for all other offsets
+        const wordAddr = addr & ~3;
+        const word = peri.get(wordAddr) ?? 0;
+        return (word >>> ((addr & 3) * 8)) & 0xFF;
+      },
+      (addr, val) => {
+        const wordAddr = addr & ~3;
+        const prev = peri.get(wordAddr) ?? 0;
+        const shift = (addr & 3) * 8;
+        peri.set(wordAddr, (prev & ~(0xFF << shift)) | ((val & 0xFF) << shift));
+      },
     );
   }
 
   /**
    * Broad catch-all for the entire ESP32-C3 peripheral address space
-   * (0x60000000–0x6FFFFFFF).  Returns 0 for any unmapped peripheral register
-   * so that the CPU doesn't fault or log warnings for writes during init.
-   * All narrower, more specific handlers (UART0, GPIO, SYSTIMER, INTC,
-   * RTC_CNTL …) have smaller MMIO sizes and therefore take priority via
-   * mmioFor's "smallest-size-wins" rule.
+   * (0x60000000–0x6FFFFFFF).
+   *
+   * Writes are stored in _periRegs so that the firmware's common
+   * "write config → read back → verify" pattern works for any peripheral
+   * register we haven't stubbed explicitly.  All narrower, more specific
+   * handlers (UART0, GPIO, SYSTIMER, INTC, RTC_CNTL …) have smaller MMIO
+   * sizes and therefore take priority via mmioFor's "smallest-size-wins" rule.
    */
   private _registerPeripheralCatchAll(): void {
+    const peri = this._periRegs;
     this.core.addMmio(0x60000000, 0x10000000,
-      () => 0,
-      (_addr, _val) => {},
+      (addr) => {
+        const wordAddr = addr & ~3;
+        const word = peri.get(wordAddr) ?? 0;
+        return (word >>> ((addr & 3) * 8)) & 0xFF;
+      },
+      (addr, val) => {
+        const wordAddr = addr & ~3;
+        const prev = peri.get(wordAddr) ?? 0;
+        const shift = (addr & 3) * 8;
+        peri.set(wordAddr, (prev & ~(0xFF << shift)) | ((val & 0xFF) << shift));
+      },
     );
   }
 
@@ -347,18 +503,31 @@ export class Esp32C3Simulator {
    */
   private _registerRtcCntl(): void {
     const RTC_BASE = 0x60008000;
+    const peri = this._periRegs;
     this.core.addMmio(RTC_BASE, 0x1000,
       (addr) => {
         const off     = addr - RTC_BASE;
         const wordOff = off & ~3;
         // offset 0x70 (RTC_CLK_CONF): TIME_VALID (bit 30) = 1 so rtc_clk_cal() exits.
         // offset 0x38 (RESET_STATE): return 1 = ESP32C3_POWERON_RESET (matches QEMU).
-        const word = wordOff === 0x70 ? (1 << 30)
-                   : wordOff === 0x38 ? 1
-                   : 0;
-        return (word >>> ((off & 3) * 8)) & 0xFF;
+        if (wordOff === 0x70) {
+          const word = (1 << 30);
+          return (word >>> ((off & 3) * 8)) & 0xFF;
+        }
+        if (wordOff === 0x38) {
+          return off === (wordOff) ? 1 : 0;  // byte 0 = 1, rest = 0
+        }
+        // Echo last written value for all other offsets
+        const wordAddr = addr & ~3;
+        const word = peri.get(wordAddr) ?? 0;
+        return (word >>> ((addr & 3) * 8)) & 0xFF;
       },
-      (_addr, _val) => {},
+      (addr, val) => {
+        const wordAddr = addr & ~3;
+        const prev = peri.get(wordAddr) ?? 0;
+        const shift = (addr & 3) * 8;
+        peri.set(wordAddr, (prev & ~(0xFF << shift)) | ((val & 0xFF) << shift));
+      },
     );
   }
 
@@ -410,6 +579,7 @@ export class Esp32C3Simulator {
     this.rxFifo  = [];
     this.gpioOut = 0;
     this.gpioIn  = 0;
+    this._periRegs.clear();
     this.core.reset(IROM_BASE);
     this.core.regs[2] = (DRAM_BASE + DRAM_SIZE - 16) | 0;
   }
@@ -446,6 +616,7 @@ export class Esp32C3Simulator {
     this.rxFifo  = [];
     this.gpioOut = 0;
     this.gpioIn  = 0;
+    this._periRegs.clear();
 
     // Load each segment at its virtual address
     for (const { loadAddr, data: seg } of parsed.segments) {
@@ -503,6 +674,7 @@ export class Esp32C3Simulator {
     this.gpioIn         = 0;
     this._stIntEna      = 0;
     this._stIntRaw      = 0;
+    this._periRegs.clear();
     this._dbgFrameCount = 0;
     this._dbgTickCount  = 0;
     this._dbgLastMtvec  = 0;
@@ -618,6 +790,38 @@ export class Esp32C3Simulator {
           ` pc=0x${spc.toString(16)} instr=0x${hex}${instrInfo}` +
           ` MIE=${(this.core.mstatusVal & 0x8) !== 0}`
         );
+      }
+
+      // ── Stuck-loop detector ────────────────────────────────────────────
+      // If the PC hasn't changed across consecutive ticks (160 000 cycles),
+      // the CPU is stuck in a tight spin.  Dump all registers once for
+      // post-mortem analysis so we can identify which peripheral or stub
+      // needs attention.
+      {
+        const curPc = this.core.pc;
+        if (curPc === this._dbgPrevTickPc) {
+          this._dbgSamePcCount++;
+          if (this._dbgSamePcCount >= 3 && !this._dbgStuckDumped) {
+            this._dbgStuckDumped = true;
+            console.warn(
+              `[ESP32-C3] ⚠ CPU stuck at pc=0x${curPc.toString(16)} for ${this._dbgSamePcCount} ticks — register dump:`
+            );
+            const regNames = [
+              'zero','ra','sp','gp','tp','t0','t1','t2',
+              's0','s1','a0','a1','a2','a3','a4','a5',
+              'a6','a7','s2','s3','s4','s5','s6','s7',
+              's8','s9','s10','s11','t3','t4','t5','t6',
+            ];
+            for (let i = 0; i < 32; i++) {
+              console.warn(`  x${i.toString().padStart(2)}(${regNames[i].padEnd(4)}) = 0x${(this.core.regs[i] >>> 0).toString(16).padStart(8, '0')}`);
+            }
+            console.warn(`  mstatus=0x${(this.core.mstatusVal >>> 0).toString(16)} mtvec=0x${(this.core.mtvecVal >>> 0).toString(16)}`);
+          }
+        } else {
+          this._dbgSamePcCount = 0;
+          this._dbgStuckDumped = false;
+        }
+        this._dbgPrevTickPc = curPc;
       }
 
       // Raise SYSTIMER TARGET0 alarm → CPU interrupt 1 (FreeRTOS tick).
