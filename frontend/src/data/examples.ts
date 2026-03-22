@@ -2034,10 +2034,25 @@ void loop() {
 // Blinks the built-in LED (GPIO2) and an external LED (GPIO4)
 // Requires arduino-esp32 2.0.17 (IDF 4.4.x) — see docs/ESP32_EMULATION.md
 
+#include <esp_task_wdt.h>
+#include <soc/timer_group_struct.h>
+#include <soc/timer_group_reg.h>
+
 #define LED_BUILTIN_PIN 2   // Built-in blue LED on ESP32 DevKit
 #define LED_EXT_PIN     4   // External red LED
 
+void disableAllWDT() {
+  esp_task_wdt_deinit();
+  TIMERG0.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG0.wdt_config0.en = 0;
+  TIMERG0.wdt_wprotect = 0;
+  TIMERG1.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG1.wdt_config0.en = 0;
+  TIMERG1.wdt_wprotect = 0;
+}
+
 void setup() {
+  disableAllWDT();
   Serial.begin(115200);
   pinMode(LED_BUILTIN_PIN, OUTPUT);
   pinMode(LED_EXT_PIN, OUTPUT);
@@ -2045,6 +2060,7 @@ void setup() {
 }
 
 void loop() {
+  disableAllWDT();
   digitalWrite(LED_BUILTIN_PIN, HIGH);
   digitalWrite(LED_EXT_PIN, HIGH);
   Serial.println("LED ON");
@@ -2076,7 +2092,22 @@ void loop() {
 // Echoes anything received on Serial (UART0) back to the sender.
 // Open the Serial Monitor, type something, and see it echoed back.
 
+#include <esp_task_wdt.h>
+#include <soc/timer_group_struct.h>
+#include <soc/timer_group_reg.h>
+
+void disableAllWDT() {
+  esp_task_wdt_deinit();
+  TIMERG0.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG0.wdt_config0.en = 0;
+  TIMERG0.wdt_wprotect = 0;
+  TIMERG1.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG1.wdt_config0.en = 0;
+  TIMERG1.wdt_wprotect = 0;
+}
+
 void setup() {
+  disableAllWDT();
   Serial.begin(115200);
   delay(500);
   Serial.println("ESP32 Serial Echo ready!");
@@ -2084,6 +2115,7 @@ void setup() {
 }
 
 void loop() {
+  disableAllWDT();
   if (Serial.available()) {
     String input = Serial.readStringUntil('\\n');
     input.trim();
@@ -2905,6 +2937,10 @@ void loop() {
     code: `// ESP32 — 7-Segment Display Counter 0-9
 // Segments: a=12, b=13, c=14, d=25, e=26, f=27, g=32
 
+#include <esp_task_wdt.h>
+#include <soc/timer_group_struct.h>
+#include <soc/timer_group_reg.h>
+
 const int SEG[7] = {12, 13, 14, 25, 26, 27, 32};
 
 const bool DIGITS[10][7] = {
@@ -2920,18 +2956,30 @@ const bool DIGITS[10][7] = {
   {1,1,1,1,0,1,1}, // 9
 };
 
+void disableAllWDT() {
+  esp_task_wdt_deinit();
+  TIMERG0.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG0.wdt_config0.en = 0;
+  TIMERG0.wdt_wprotect = 0;
+  TIMERG1.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG1.wdt_config0.en = 0;
+  TIMERG1.wdt_wprotect = 0;
+}
+
 void showDigit(int d) {
   for (int i = 0; i < 7; i++)
     digitalWrite(SEG[i], DIGITS[d][i] ? HIGH : LOW);
 }
 
 void setup() {
+  disableAllWDT();
   for (int i = 0; i < 7; i++) pinMode(SEG[i], OUTPUT);
   Serial.begin(115200);
   Serial.println("ESP32 7-Segment Counter");
 }
 
 void loop() {
+  disableAllWDT();
   for (int d = 0; d <= 9; d++) {
     showDigit(d);
     Serial.print("Digit: "); Serial.println(d);
@@ -3770,10 +3818,25 @@ void loop() {
     code: `// ESP32 — HC-SR04 Ultrasonic Distance Sensor
 // Wiring: TRIG → D18  |  ECHO → D19  |  VCC → 3V3  |  GND → GND
 
+#include <esp_task_wdt.h>
+#include <soc/timer_group_struct.h>
+#include <soc/timer_group_reg.h>
+
 #define TRIG_PIN 18
 #define ECHO_PIN 19
 
+void disableAllWDT() {
+  esp_task_wdt_deinit();
+  TIMERG0.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG0.wdt_config0.en = 0;
+  TIMERG0.wdt_wprotect = 0;
+  TIMERG1.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG1.wdt_config0.en = 0;
+  TIMERG1.wdt_wprotect = 0;
+}
+
 void setup() {
+  disableAllWDT();
   Serial.begin(115200);
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
@@ -3791,6 +3854,7 @@ long measureCm() {
 }
 
 void loop() {
+  disableAllWDT();
   long cm = measureCm();
   if (cm < 0) Serial.println("Out of range");
   else        Serial.printf("Distance: %ld cm\\n", cm);
@@ -3818,13 +3882,27 @@ void loop() {
 // Requires: Adafruit MPU6050, Adafruit Unified Sensor libraries
 // Wiring: SDA → D21  |  SCL → D22  |  VCC → 3V3  |  GND → GND
 
+#include <esp_task_wdt.h>
+#include <soc/timer_group_struct.h>
+#include <soc/timer_group_reg.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
 
 Adafruit_MPU6050 mpu;
 
+void disableAllWDT() {
+  esp_task_wdt_deinit();
+  TIMERG0.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG0.wdt_config0.en = 0;
+  TIMERG0.wdt_wprotect = 0;
+  TIMERG1.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG1.wdt_config0.en = 0;
+  TIMERG1.wdt_wprotect = 0;
+}
+
 void setup() {
+  disableAllWDT();
   Serial.begin(115200);
   Wire.begin(21, 22); // SDA=21, SCL=22
   if (!mpu.begin()) {
@@ -3838,6 +3916,7 @@ void setup() {
 }
 
 void loop() {
+  disableAllWDT();
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
 
@@ -3869,13 +3948,28 @@ void loop() {
     code: `// ESP32 — PIR Motion Sensor
 // Wiring: OUT → D5  |  VCC → 3V3  |  GND → GND
 
+#include <esp_task_wdt.h>
+#include <soc/timer_group_struct.h>
+#include <soc/timer_group_reg.h>
+
 #define PIR_PIN 5
 #define LED_PIN 2   // built-in blue LED on ESP32 DevKit
 
 bool prevMotion = false;
 unsigned long detections = 0;
 
+void disableAllWDT() {
+  esp_task_wdt_deinit();
+  TIMERG0.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG0.wdt_config0.en = 0;
+  TIMERG0.wdt_wprotect = 0;
+  TIMERG1.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG1.wdt_config0.en = 0;
+  TIMERG1.wdt_wprotect = 0;
+}
+
 void setup() {
+  disableAllWDT();
   Serial.begin(115200);
   pinMode(PIR_PIN, INPUT);
   pinMode(LED_PIN, OUTPUT);
@@ -3885,6 +3979,7 @@ void setup() {
 }
 
 void loop() {
+  disableAllWDT();
   bool motion = (digitalRead(PIR_PIN) == HIGH);
   if (motion && !prevMotion) {
     detections++;
@@ -3980,17 +4075,33 @@ void loop() {
 // Wiring: HORZ → D35 | VERT → D34 | SEL → D15
 //         VCC → 3V3  | GND → GND
 
+#include <esp_task_wdt.h>
+#include <soc/timer_group_struct.h>
+#include <soc/timer_group_reg.h>
+
 #define JOY_HORZ 35  // input-only ADC pin
 #define JOY_VERT 34  // input-only ADC pin
 #define JOY_BTN  15  // GPIO with pull-up
 
+void disableAllWDT() {
+  esp_task_wdt_deinit();
+  TIMERG0.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG0.wdt_config0.en = 0;
+  TIMERG0.wdt_wprotect = 0;
+  TIMERG1.wdt_wprotect = TIMG_WDT_WKEY_VALUE;
+  TIMERG1.wdt_config0.en = 0;
+  TIMERG1.wdt_wprotect = 0;
+}
+
 void setup() {
+  disableAllWDT();
   Serial.begin(115200);
   pinMode(JOY_BTN, INPUT_PULLUP);
   Serial.println("ESP32 Joystick ready");
 }
 
 void loop() {
+  disableAllWDT();
   int x    = analogRead(JOY_HORZ); // 0–4095
   int y    = analogRead(JOY_VERT); // 0–4095
   bool btn = (digitalRead(JOY_BTN) == LOW);

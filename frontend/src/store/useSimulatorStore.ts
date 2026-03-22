@@ -24,8 +24,10 @@ const SENSOR_COMPONENT_MAP: Record<string, {
   sensorType: string;
   dataPinName: string;
   propertyKeys: string[];
+  extraPins?: Record<string, string>; // extra pin mappings: prop name → component pin name
 }> = {
   'dht22': { sensorType: 'dht22', dataPinName: 'SDA', propertyKeys: ['temperature', 'humidity'] },
+  'hc-sr04': { sensorType: 'hc-sr04', dataPinName: 'TRIG', propertyKeys: ['distance'], extraPins: { echo_pin: 'ECHO' } },
 };
 
 // ── Legacy type aliases (keep external consumers working) ──────────────────
@@ -589,6 +591,24 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
               for (const key of sensorDef.propertyKeys) {
                 const val = comp.properties[key];
                 if (val !== undefined) props[key] = typeof val === 'string' ? parseFloat(val) : val;
+              }
+              // Resolve extra pins (e.g. echo_pin for HC-SR04) from wires
+              if (sensorDef.extraPins) {
+                for (const [propName, compPinName] of Object.entries(sensorDef.extraPins)) {
+                  for (const ew of wires) {
+                    const epComp = (ew.start.componentId === comp.id && ew.start.pinName === compPinName)
+                      ? ew.start : (ew.end.componentId === comp.id && ew.end.pinName === compPinName)
+                      ? ew.end : null;
+                    if (!epComp) continue;
+                    const epBoard = epComp === ew.start ? ew.end : ew.start;
+                    if (!isBoardComponent(epBoard.componentId)) continue;
+                    const extraGpio = boardPinToNumber(board.boardKind, epBoard.pinName);
+                    if (extraGpio !== null && extraGpio >= 0) {
+                      props[propName] = extraGpio;
+                    }
+                    break;
+                  }
+                }
               }
               sensors.push(props);
               break; // only one data pin per sensor

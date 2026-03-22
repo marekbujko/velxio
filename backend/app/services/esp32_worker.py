@@ -287,6 +287,29 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
                 if sensor:
                     sensor['responding'] = False
 
+    def _hcsr04_respond(trig_pin: int, echo_pin: int, distance_cm: float) -> None:
+        """Thread function: inject the HC-SR04 echo pulse via qemu_picsimlab_set_pin."""
+        echo_slot = echo_pin + 1  # identity pinmap: slot = gpio + 1
+        # Echo pulse width = distance_cm * 58 µs (speed of sound round trip)
+        echo_us = max(100, int(distance_cm * 58))
+
+        try:
+            # Wait for TRIG pulse to finish + propagation delay (~600 µs)
+            _busy_wait_us(600)
+            # Drive ECHO HIGH
+            lib.qemu_picsimlab_set_pin(echo_slot, 1)
+            # Hold ECHO HIGH for distance-proportional duration
+            _busy_wait_us(echo_us)
+            # Drive ECHO LOW
+            lib.qemu_picsimlab_set_pin(echo_slot, 0)
+        except Exception as exc:
+            _log(f'HC-SR04 respond error on TRIG {trig_pin} ECHO {echo_pin}: {exc}')
+        finally:
+            with _sensors_lock:
+                sensor = _sensors.get(trig_pin)
+                if sensor:
+                    sensor['responding'] = False
+
     # ── 5. ctypes callbacks (called from QEMU thread) ─────────────────────────
 
     def _on_pin_change(slot: int, value: int) -> None:
@@ -298,7 +321,12 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
         # Sensor protocol dispatch by type
         with _sensors_lock:
             sensor = _sensors.get(gpio)
-        if sensor is not None and sensor.get('type') == 'dht22':
+        if sensor is None:
+            return
+
+        stype = sensor.get('type', '')
+
+        if stype == 'dht22':
             if value == 0 and not sensor.get('responding', False):
                 sensor['saw_low'] = True
             elif value == 1 and sensor.get('saw_low', False):
@@ -310,6 +338,19 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
                           sensor.get('humidity', 50.0)),
                     daemon=True,
                     name=f'dht22-gpio{gpio}',
+                ).start()
+
+        elif stype == 'hc-sr04':
+            # HC-SR04: detect TRIG going HIGH (firmware sends 10µs pulse)
+            if value == 1 and not sensor.get('responding', False):
+                sensor['responding'] = True
+                echo_pin = int(sensor.get('echo_pin', gpio + 1))
+                distance = float(sensor.get('distance', 40.0))
+                threading.Thread(
+                    target=_hcsr04_respond,
+                    args=(gpio, echo_pin, distance),
+                    daemon=True,
+                    name=f'hcsr04-gpio{gpio}',
                 ).start()
 
     def _on_dir_change(slot: int, direction: int) -> None:

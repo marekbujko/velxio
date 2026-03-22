@@ -631,18 +631,46 @@ PartSimulationRegistry.register('hc-sr04', {
         const echoPin = getArduinoPinHelper('ECHO');
         if (trigPin === null || echoPin === null) return () => {};
 
-        simulator.setPinState(echoPin, false); // ECHO LOW initially
+        const el = element as any;
+        let distanceCm = parseFloat(el.distance) || 10; // default distance in cm
 
-        let distanceCm = 10; // default distance in cm
+        // ── ESP32 path: delegate protocol to backend QEMU worker ──
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handledNatively = typeof (simulator as any).registerSensor === 'function'
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            && (simulator as any).registerSensor('hc-sr04', trigPin, {
+                distance: distanceCm,
+                echo_pin: echoPin,
+            });
+
+        if (handledNatively) {
+            registerSensorUpdate(componentId, (values) => {
+                if ('distance' in values) {
+                    distanceCm = Math.max(2, Math.min(400, values.distance as number));
+                }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (simulator as any).updateSensor(trigPin, {
+                    distance: distanceCm,
+                    echo_pin: echoPin,
+                });
+            });
+
+            return () => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (simulator as any).unregisterSensor(trigPin);
+                unregisterSensorUpdate(componentId);
+            };
+        }
+
+        // ── AVR / RP2040 path: local pin scheduling ──
+        simulator.setPinState(echoPin, false); // ECHO LOW initially
 
         const cleanup = simulator.pinManager.onPinChange(trigPin, (_: number, state: boolean) => {
             if (!state) return; // only react on TRIG HIGH
-            // HC-SR04 timing (at 16 MHz):
-            //  - Sensor processing delay after TRIG: ~600 µs = 9600 cycles
-            //  - Echo duration = distanceCm / 17150 s × 16 000 000 cycles/s
-            //    (17150 cm/s = speed of sound, one-way = round-trip/2)
             if (typeof simulator.schedulePinChange === 'function') {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const clockHz: number = typeof (simulator as any).getClockHz === 'function'
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     ? (simulator as any).getClockHz()
                     : 16_000_000;
                 const now = simulator.getCurrentCycles() as number;

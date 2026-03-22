@@ -414,17 +414,18 @@ function scheduleDHT22Response(simulator: any, pin: number, element: HTMLElement
   const payload = buildDHT22Payload(element);
   const now = simulator.getCurrentCycles() as number;
 
-  // Timing constants at 16 MHz (cycles per µs = 16)
-  // DHT22 starts pulling the line LOW ~20 µs after MCU releases it HIGH.
-  // The Adafruit DHT library v1.4.7 calls expectPulse(LOW) at ~55 µs (pullTime default),
-  // so the preamble LOW must already be active by then. Starting at 20 µs (320 cycles)
-  // guarantees the pin IS LOW when the library checks.
-  const RESPONSE_START = 320; // 20 µs — DHT22 response start
-  const LOW80  = 1280; // 80 µs LOW preamble
-  const HIGH80 = 1280; // 80 µs HIGH preamble
-  const LOW50  =  800; // 50 µs LOW marker before each bit
-  const HIGH0  =  416; // 26 µs HIGH → bit '0'
-  const HIGH1  = 1120; // 70 µs HIGH → bit '1'
+  // Scale timing by CPU clock — AVR runs at 16 MHz, RP2040 at 125 MHz.
+  const clockHz: number = typeof simulator.getClockHz === 'function'
+      ? simulator.getClockHz()
+      : 16_000_000;
+  const us = (microseconds: number) => Math.round(microseconds * clockHz / 1_000_000);
+
+  const RESPONSE_START = us(20);  // DHT22 response start (~20 µs after MCU releases)
+  const LOW80  = us(80);  // 80 µs LOW preamble
+  const HIGH80 = us(80);  // 80 µs HIGH preamble
+  const LOW50  = us(50);  // 50 µs LOW marker before each bit
+  const HIGH0  = us(26);  // 26 µs HIGH → bit '0'
+  const HIGH1  = us(70);  // 70 µs HIGH → bit '1'
 
   let t = now + RESPONSE_START;
 
@@ -487,9 +488,13 @@ PartSimulationRegistry.register('dht22', {
     // Prevent DHT22's own scheduled pin changes from re-triggering the response.
     // After the MCU releases DATA HIGH and we begin responding, we ignore all
     // pin-change callbacks until the full waveform has been emitted.
-    // DHT22 response is ~5 ms; at 16 MHz that is ~80 000 cycles. We gate for
-    // 200 000 cycles (~12.5 ms) to give plenty of headroom.
-    const RESPONSE_GATE_CYCLES = 200_000;
+    // DHT22 response is ~5 ms; gate for ~12.5 ms scaled to the CPU clock.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const clockHz: number = typeof (simulator as any).getClockHz === 'function'
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? (simulator as any).getClockHz()
+        : 16_000_000;
+    const RESPONSE_GATE_CYCLES = Math.round(12_500 * clockHz / 1_000_000);
     let responseEndCycle = 0;
     let responseEndTimeMs = 0; // time-based fallback for ESP32 (no cycle counter)
 
