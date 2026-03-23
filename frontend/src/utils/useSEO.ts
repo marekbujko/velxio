@@ -47,6 +47,17 @@ export function useSEO({ title, description, url, ogImage, jsonLd }: SEOMeta) {
     const origTwDesc    = get(twDescEl);
     const origCanonical = canonicalEl?.getAttribute('href') ?? '';
 
+    // If no <link rel="canonical"> exists yet, create one so each SPA route
+    // gets its own canonical (avoids all routes appearing to point back to /).
+    let createdCanonical = false;
+    let activeCanonical: HTMLLinkElement | null = canonicalEl as HTMLLinkElement | null;
+    if (!activeCanonical) {
+      activeCanonical = document.createElement('link') as HTMLLinkElement;
+      activeCanonical.rel = 'canonical';
+      document.head.appendChild(activeCanonical);
+      createdCanonical = true;
+    }
+
     // Apply
     document.title = title;
     set(descEl, description);
@@ -56,7 +67,7 @@ export function useSEO({ title, description, url, ogImage, jsonLd }: SEOMeta) {
     if (ogImage) set(ogImgEl, ogImage);
     set(twTitleEl, title);
     set(twDescEl, description);
-    canonicalEl?.setAttribute('href', url);
+    activeCanonical.setAttribute('href', url);
 
     // Inject JSON-LD once (module-level constants don't change)
     if (jsonLd && !scriptRef.current) {
@@ -77,7 +88,11 @@ export function useSEO({ title, description, url, ogImage, jsonLd }: SEOMeta) {
       if (ogImage) set(ogImgEl, origOgImg);
       set(twTitleEl, origTwTitle);
       set(twDescEl, origTwDesc);
-      canonicalEl?.setAttribute('href', origCanonical);
+      if (createdCanonical && activeCanonical && document.head.contains(activeCanonical)) {
+        document.head.removeChild(activeCanonical);
+      } else {
+        activeCanonical?.setAttribute('href', origCanonical);
+      }
       if (scriptRef.current) {
         document.head.removeChild(scriptRef.current);
         scriptRef.current = null;
