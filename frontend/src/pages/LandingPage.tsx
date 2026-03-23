@@ -246,73 +246,6 @@ const CircuitSchematic = () => (
 );
 
 /* ── Board SVGs ───────────────────────────────────────── */
-const BoardUno = () => (
-  <svg viewBox="0 0 120 80" className="board-svg">
-    <rect x="2" y="2" width="116" height="76" rx="4" fill="#006633" stroke="#004d26" strokeWidth="1.5" />
-    <rect x="42" y="22" width="36" height="36" rx="2" fill="#1a1a1a" stroke="#333" strokeWidth="1" />
-    <rect x="0" y="28" width="14" height="24" rx="2" fill="#555" stroke="#444" strokeWidth="1" />
-    <circle cx="108" cy="20" r="7" fill="#333" stroke="#222" strokeWidth="1" />
-    {[0,1,2,3,4,5,6,7,8,9,11,12,13].map((i) => (
-      <rect key={i} x={20 + i * 6.5} y="4" width="3" height="6" rx="0.5" fill="#d4a017" />
-    ))}
-    {[0,1,2,3,4,5].map((i) => (
-      <rect key={i} x={40 + i * 8} y="70" width="3" height="6" rx="0.5" fill="#d4a017" />
-    ))}
-    <circle cx="90" cy="12" r="2.5" fill="#00ff88" opacity="0.9" />
-    <text x="60" y="77" textAnchor="middle" fill="#00aa55" fontSize="5" fontFamily="monospace">Arduino Uno</text>
-  </svg>
-);
-
-const BoardNano = () => (
-  <svg viewBox="0 0 120 50" className="board-svg">
-    <rect x="2" y="2" width="116" height="46" rx="3" fill="#003399" stroke="#002277" strokeWidth="1.5" />
-    <rect x="44" y="12" width="24" height="24" rx="1.5" fill="#1a1a1a" stroke="#333" strokeWidth="1" />
-    <rect x="50" y="0" width="20" height="8" rx="2" fill="#555" stroke="#444" strokeWidth="1" />
-    {[0,1,2,3,4,5,6,7].map((i) => (
-      <rect key={i} x="4" y={8 + i * 4.5} width="6" height="3" rx="0.5" fill="#d4a017" />
-    ))}
-    {[0,1,2,3,4,5,6,7].map((i) => (
-      <rect key={i} x="110" y={8 + i * 4.5} width="6" height="3" rx="0.5" fill="#d4a017" />
-    ))}
-    <circle cx="28" cy="10" r="2" fill="#00ff88" opacity="0.9" />
-    <text x="60" y="44" textAnchor="middle" fill="#6699ff" fontSize="5" fontFamily="monospace">Arduino Nano</text>
-  </svg>
-);
-
-const BoardPico = () => (
-  <svg viewBox="0 0 120 60" className="board-svg">
-    <rect x="2" y="2" width="116" height="56" rx="3" fill="#f0f0f0" stroke="#ccc" strokeWidth="1.5" />
-    <rect x="40" y="14" width="32" height="32" rx="2" fill="#1a1a1a" stroke="#333" strokeWidth="1" />
-    <rect x="44" y="18" width="24" height="24" rx="1" fill="#222" stroke="#444" strokeWidth="0.5" />
-    <rect x="50" y="0" width="20" height="8" rx="2" fill="#888" stroke="#666" strokeWidth="1" />
-    {[0,1,2,3,4,5,6].map((i) => (
-      <rect key={i} x="4" y={10 + i * 6} width="6" height="4" rx="0.5" fill="#888" />
-    ))}
-    {[0,1,2,3,4,5,6].map((i) => (
-      <rect key={i} x="110" y={10 + i * 6} width="6" height="4" rx="0.5" fill="#888" />
-    ))}
-    <circle cx="88" cy="10" r="2.5" fill="#00ccff" opacity="0.9" />
-    <text x="60" y="57" textAnchor="middle" fill="#555" fontSize="5" fontFamily="monospace">Raspberry Pi Pico</text>
-  </svg>
-);
-
-const BoardMega = () => (
-  <svg viewBox="0 0 160 80" className="board-svg">
-    <rect x="2" y="2" width="156" height="76" rx="4" fill="#006633" stroke="#004d26" strokeWidth="1.5" />
-    <rect x="55" y="20" width="50" height="40" rx="2" fill="#1a1a1a" stroke="#333" strokeWidth="1" />
-    <rect x="0" y="28" width="14" height="24" rx="2" fill="#555" stroke="#444" strokeWidth="1" />
-    <circle cx="148" cy="20" r="7" fill="#333" stroke="#222" strokeWidth="1" />
-    {Array.from({length: 18}).map((_, i) => (
-      <rect key={i} x={18 + i * 7} y="4" width="3" height="6" rx="0.5" fill="#d4a017" />
-    ))}
-    {Array.from({length: 18}).map((_, i) => (
-      <rect key={i} x={18 + i * 7} y="70" width="3" height="6" rx="0.5" fill="#d4a017" />
-    ))}
-    <circle cx="130" cy="12" r="2.5" fill="#00ff88" opacity="0.9" />
-    <circle cx="138" cy="12" r="2.5" fill="#ff6600" opacity="0.9" />
-    <text x="80" y="77" textAnchor="middle" fill="#00aa55" fontSize="5" fontFamily="monospace">Arduino Mega 2560</text>
-  </svg>
-);
 
 const BoardATtiny85 = () => (
   <svg viewBox="0 0 60 50" className="board-svg" style={{ maxWidth: '100px' }}>
@@ -548,17 +481,23 @@ export const LandingPage: React.FC = () => {
           </div>
           <div className="boards-row">
             <div className="board-card-sm">
-              <div className="board-img-box"><BoardUno /></div>
+              <div className="board-img-box">
+                <img src="/boards/arduino-uno.svg" alt="Arduino Uno" className="board-img-sm" />
+              </div>
               <span className="board-name-sm">Arduino Uno</span>
               <span className="board-chip-sm">ATmega328p · 32 KB</span>
             </div>
             <div className="board-card-sm">
-              <div className="board-img-box"><BoardNano /></div>
+              <div className="board-img-box">
+                <img src="/boards/arduino-nano.svg" alt="Arduino Nano" className="board-img-sm" />
+              </div>
               <span className="board-name-sm">Arduino Nano</span>
               <span className="board-chip-sm">ATmega328p · 32 KB</span>
             </div>
             <div className="board-card-sm">
-              <div className="board-img-box"><BoardMega /></div>
+              <div className="board-img-box">
+                <img src="/boards/arduino-mega.svg" alt="Arduino Mega 2560" className="board-img-sm" />
+              </div>
               <span className="board-name-sm">Arduino Mega 2560</span>
               <span className="board-chip-sm">ATmega2560 · 256 KB</span>
             </div>
