@@ -253,41 +253,48 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
         chk = (h_H + h_L + t_H + t_L) & 0xFF
         return [h_H, h_L, t_H, t_L, chk]
 
-    def _dht22_respond(gpio_pin: int, temperature: float, humidity: float) -> None:
-        """Thread function: inject the DHT22 protocol waveform via qemu_picsimlab_set_pin."""
+    def _dht22_respond(gpio_pin: int, temperature: float, humidity: float,
+                       ratio: float) -> None:
+        """Thread function: inject the DHT22 protocol waveform via qemu_picsimlab_set_pin.
+
+        The pin is already driven LOW by the _on_dir_change callback before this
+        thread starts.  *ratio* is wall-clock-µs per QEMU-µs, derived from
+        measuring how long the firmware's start signal took in wall-clock time.
+        """
         slot = gpio_pin + 1  # identity pinmap: slot = gpio + 1
         payload = _dht22_build_payload(temperature, humidity)
 
-        try:
-            # Wait for the firmware's start signal (LOW pulse) to end.
-            # Adafruit DHT library holds LOW for ~1-20 ms then switches to INPUT.
-            # QEMU doesn't fire a pin-change callback when the pin goes to INPUT
-            # (high-Z / pull-up), so we trigger on the LOW event and wait here.
-            time.sleep(0.025)  # 25 ms — covers max LOW pulse + margin
+        def qemu_wait(qemu_us: float) -> None:
+            """Busy-wait for the wall-clock equivalent of *qemu_us* QEMU µs."""
+            wall_us = max(1, int(qemu_us * ratio))
+            _busy_wait_us(wall_us)
 
-            # Preamble: 80 µs LOW → 80 µs HIGH (use 2x margins for QEMU speed variation)
-            lib.qemu_picsimlab_set_pin(slot, 0)
-            _busy_wait_us(160)
+        try:
+            _log(f'DHT22 respond: gpio={gpio_pin} slot={slot} ratio={ratio:.4f}')
+
+            # Pin is already LOW (driven synchronously in _on_dir_change).
+            # Preamble: hold LOW 80 µs → drive HIGH 80 µs
+            qemu_wait(80)
             lib.qemu_picsimlab_set_pin(slot, 1)
-            _busy_wait_us(160)
+            qemu_wait(80)
 
             # 40 data bits: 50 µs LOW + (26 µs HIGH = 0, 70 µs HIGH = 1)
-            # Use 2x margins: 100 µs LOW, 52 µs HIGH (0) / 140 µs HIGH (1)
             for byte_val in payload:
                 for b in range(7, -1, -1):
                     bit = (byte_val >> b) & 1
                     lib.qemu_picsimlab_set_pin(slot, 0)
-                    _busy_wait_us(100)
+                    qemu_wait(50)
                     lib.qemu_picsimlab_set_pin(slot, 1)
-                    _busy_wait_us(140 if bit else 52)
+                    qemu_wait(70 if bit else 26)
 
             # Final: release line HIGH
             lib.qemu_picsimlab_set_pin(slot, 0)
-            _busy_wait_us(100)
+            qemu_wait(50)
             lib.qemu_picsimlab_set_pin(slot, 1)
         except Exception as exc:
             _log(f'DHT22 respond error on GPIO {gpio_pin}: {exc}')
         finally:
+            _log(f'DHT22 respond done on GPIO {gpio_pin}')
             with _sensors_lock:
                 sensor = _sensors.get(gpio_pin)
                 if sensor:
@@ -333,20 +340,11 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
         stype = sensor.get('type', '')
 
         if stype == 'dht22':
-            # QEMU only fires pin-change for OUTPUT drives; switching to INPUT
-            # (pull-up HIGH) does NOT generate a value=1 callback.  So we
-            # trigger the response on the LOW event directly.  The response
-            # thread sleeps ~25 ms to let the firmware's start pulse finish
-            # before driving the preamble + data waveform.
+            # Record that the firmware drove the pin LOW (start signal).
+            # The actual response is triggered from _on_dir_change when the
+            # firmware switches the pin to INPUT mode.
             if value == 0 and not sensor.get('responding', False):
-                sensor['responding'] = True
-                threading.Thread(
-                    target=_dht22_respond,
-                    args=(gpio, sensor.get('temperature', 25.0),
-                          sensor.get('humidity', 50.0)),
-                    daemon=True,
-                    name=f'dht22-gpio{gpio}',
-                ).start()
+                sensor['saw_low'] = True
 
         elif stype == 'hc-sr04':
             # HC-SR04: detect TRIG going HIGH (firmware sends 10µs pulse)
@@ -364,6 +362,56 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
     def _on_dir_change(slot: int, direction: int) -> None:
         if _stopped.is_set():
             return
+
+        # Debug: log all real-pin direction changes (skip noisy slot=-1 sync events)
+        if slot >= 1:
+            gpio_dbg = int(_PINMAP[slot]) if slot <= _GPIO_COUNT else slot
+            _log(f'DIR_CHANGE slot={slot} gpio={gpio_dbg} direction={direction}')
+
+        # DHT22: track direction changes for calibration + response trigger.
+        # QEMU runs faster than real-time, so wall-clock _busy_wait_us()
+        # delays are too slow.  We calibrate by measuring the wall-clock
+        # duration of the firmware's start signal (OUTPUT→INPUT), which
+        # corresponds to a known QEMU duration (~1200 µs minimum).
+        if slot >= 1:
+            gpio = int(_PINMAP[slot]) if slot <= _GPIO_COUNT else slot
+            with _sensors_lock:
+                sensor = _sensors.get(gpio)
+            if sensor is not None and sensor.get('type') == 'dht22':
+                if direction == 1:
+                    # OUTPUT mode — record timestamp for timing calibration
+                    sensor['dir_out_ns'] = time.perf_counter_ns()
+                elif direction == 0:
+                    # INPUT mode — trigger DHT22 response
+                    if sensor.get('saw_low', False) and not sensor.get('responding', False):
+                        sensor['saw_low'] = False
+                        sensor['responding'] = True
+
+                        # Calibrate: measure how long the start signal took in
+                        # wall-clock time.  The QEMU time between direction=1
+                        # and direction=0 is at least ~1200 µs (Adafruit DHT
+                        # library: delayMicroseconds(1100) + overhead).
+                        now_ns = time.perf_counter_ns()
+                        dir_out_ns = sensor.get('dir_out_ns', now_ns)
+                        wall_us = max(1.0, (now_ns - dir_out_ns) / 1000)
+                        qemu_us_signal = 1200.0
+                        ratio = wall_us / qemu_us_signal
+                        _log(f'DHT22 dir_change→INPUT gpio={gpio}: '
+                             f'wall={wall_us:.0f}µs ratio={ratio:.4f}')
+
+                        # Drive pin LOW *synchronously* before returning to
+                        # QEMU — this guarantees the firmware sees LOW at its
+                        # first digitalRead() in expectPulse().
+                        lib.qemu_picsimlab_set_pin(slot, 0)
+
+                        threading.Thread(
+                            target=_dht22_respond,
+                            args=(gpio, sensor.get('temperature', 25.0),
+                                  sensor.get('humidity', 50.0), ratio),
+                            daemon=True,
+                            name=f'dht22-gpio{gpio}',
+                        ).start()
+
         # slot == -1 means a sync event from GPIO/LEDC/IOMUX peripheral
         if slot == -1:
             marker = direction & 0xF000

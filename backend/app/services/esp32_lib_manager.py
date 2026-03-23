@@ -474,8 +474,8 @@ class EspLibManager:
         try:
             assert inst.process.stderr is not None
             for line in inst.process.stderr:
-                logger.debug('[worker:%s] %s', client_id,
-                             line.decode(errors='replace').rstrip())
+                logger.info('[worker:%s] %s', client_id,
+                            line.decode(errors='replace').rstrip())
         except Exception:
             pass
 
