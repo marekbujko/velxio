@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { trackVisitGitHub, trackVisitDiscord } from '../../utils/analytics';
 
 const GITHUB_URL = 'https://github.com/davidmonterocrespo24/velxio';
-const DISCORD_URL = 'https://discord.gg/rCScB9cG';
+const DISCORD_URL = 'https://discord.gg/3mARjJrh4E';
 
 interface AppHeaderProps {}
 

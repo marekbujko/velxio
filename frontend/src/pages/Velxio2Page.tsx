@@ -14,7 +14,7 @@ import './SEOPage.css';
 import './Velxio2Page.css';
 
 const GITHUB_URL = 'https://github.com/davidmonterocrespo24/velxio';
-const DISCORD_URL = 'https://discord.gg/rCScB9cG';
+const DISCORD_URL = 'https://discord.gg/3mARjJrh4E';
 
 /* ── SVG Icons (no emojis) ─────────────────────────────── */
 const IcoRocket = () => (
