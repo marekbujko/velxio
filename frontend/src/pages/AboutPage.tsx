@@ -8,7 +8,11 @@ const GITHUB_URL = 'https://github.com/davidmonterocrespo24/velxio';
 const LINKEDIN_URL = 'https://www.linkedin.com/in/davidmonterocrespo24';
 const GITHUB_PROFILE = 'https://github.com/davidmonterocrespo24';
 const MEDIUM_URL = 'https://medium.com/@davidmonterocrespo24';
-const HN_THREAD_V2 = 'https://news.ycombinator.com/item?id=43484227';
+const MEDIUM_ARTICLE_URL = 'https://medium.com/@davidmonterocrespo24/velxio-architecture-and-development-of-a-strictly-local-execution-microcontroller-emulator-62b4c1157a72';
+const HN_THREAD_V2 = 'https://news.ycombinator.com/item?id=47548013';
+const PRODUCT_HUNT_URL = 'https://www.producthunt.com/products/velxio';
+const HACKADAY_URL = 'https://hackaday.io/project/205186-velxio-browser-based-arduino-emulator';
+const REDDIT_URL = 'https://www.reddit.com/r/esp32/comments/1s2naya/a_browserbased_esp32_emulator_using_qemu_supports/';
 
 /* ── Icons ──────────────────────────────────────────── */
 const IcoChip = () => (
@@ -272,10 +276,10 @@ export const AboutPage: React.FC = () => {
             <p>Featured on:</p>
             <div className="about-press-list">
               <a href={HN_THREAD_V2} target="_blank" rel="noopener noreferrer" className="about-press-badge">Hacker News (Front Page)</a>
-              <span className="about-press-badge">Product Hunt</span>
-              <span className="about-press-badge">Reddit r/arduino</span>
-              <span className="about-press-badge">Hackster.io</span>
-              <span className="about-press-badge">XDA Developers</span>
+              <a href={PRODUCT_HUNT_URL} target="_blank" rel="noopener noreferrer" className="about-press-badge">Product Hunt</a>
+              <a href={HACKADAY_URL} target="_blank" rel="noopener noreferrer" className="about-press-badge">Hackaday</a>
+              <a href={REDDIT_URL} target="_blank" rel="noopener noreferrer" className="about-press-badge">Reddit r/esp32</a>
+              <a href={MEDIUM_ARTICLE_URL} target="_blank" rel="noopener noreferrer" className="about-press-badge">Medium</a>
             </div>
           </div>
         </div>
