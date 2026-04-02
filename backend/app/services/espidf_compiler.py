@@ -57,9 +57,24 @@ class ESPIDFCompiler:
                     self.idf_path = candidate
                     break
 
+        # Auto-detect Arduino-as-component if not explicitly set
+        if self.idf_path and not self.has_arduino:
+            for candidate in [
+                r'C:\Espressif\components\arduino-esp32',
+                os.path.join(self.idf_path, '..', 'components', 'arduino-esp32'),
+                '/opt/arduino-esp32',
+            ]:
+                if os.path.isdir(candidate):
+                    self.arduino_path = os.path.abspath(candidate)
+                    self.has_arduino = True
+                    break
+
         if self.idf_path:
             logger.info(f'[espidf] IDF_PATH={self.idf_path}')
-            logger.info(f'[espidf] Arduino component: {"yes" if self.has_arduino else "no"}')
+            if self.has_arduino:
+                logger.info(f'[espidf] Arduino component: yes ({self.arduino_path})')
+            else:
+                logger.info('[espidf] Arduino component: no (pure ESP-IDF fallback)')
         else:
             logger.warning('[espidf] IDF_PATH not set — ESP-IDF compilation unavailable')
 
