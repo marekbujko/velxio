@@ -116,6 +116,10 @@ export const SimulatorCanvas = () => {
   const [sensorControlComponentId, setSensorControlComponentId] = useState<string | null>(null);
   const [sensorControlMetadataId, setSensorControlMetadataId] = useState<string | null>(null);
 
+  // Board built-in LED states (pin 13 for AVR, GPIO25 for RP2040, etc.)
+  // Tracks directly from pinManager — independent of any led-builtin component.
+  const [boardLedStates, setBoardLedStates] = useState<Record<string, boolean>>({});
+
   // Board context menu (right-click)
   const [boardContextMenu, setBoardContextMenu] = useState<{ boardId: string; x: number; y: number } | null>(null);
   // Board removal confirmation dialog
@@ -555,7 +559,10 @@ export const SimulatorCanvas = () => {
                 setSensorControlMetadataId(component.metadataId);
               } else {
                 setPropertyDialogComponentId(touchId);
-                setPropertyDialogPosition({ x: component.x, y: component.y });
+                setPropertyDialogPosition({
+                  x: component.x * zoomRef.current + panRef.current.x,
+                  y: component.y * zoomRef.current + panRef.current.y,
+                });
                 setShowPropertyDialog(true);
               }
             }
@@ -706,6 +713,38 @@ export const SimulatorCanvas = () => {
       unsubscribers.forEach(unsub => unsub());
     };
   }, [components, wires, boards, pinManager, updateComponentState]);
+
+  // Board built-in LED: subscribe directly to pinManager for the LED pin of each board.
+  // This works even when no external led-builtin component exists (e.g. basic Blink example).
+  useEffect(() => {
+    if (!pinManager) return;
+    const unsubs: (() => void)[] = [];
+
+    boards.forEach((board) => {
+      // Determine which GPIO pin drives the board's built-in LED
+      let ledPin: number;
+      switch (board.boardKind) {
+        case 'raspberry-pi-pico':
+        case 'pi-pico-w':
+        case 'nano-rp2040':
+          ledPin = 25; // GPIO25
+          break;
+        default:
+          ledPin = 13; // Pin 13 for Arduino Uno/Nano/Mega, ATtiny85, etc.
+      }
+
+      unsubs.push(
+        pinManager.onPinChange(ledPin, (_pin, state) => {
+          setBoardLedStates((prev) => {
+            if (prev[board.id] === state) return prev;
+            return { ...prev, [board.id]: state };
+          });
+        })
+      );
+    });
+
+    return () => unsubs.forEach((u) => u());
+  }, [boards, pinManager]);
 
   // ESP32 input components: forward button presses and potentiometer values to QEMU
   useEffect(() => {
@@ -968,7 +1007,10 @@ export const SimulatorCanvas = () => {
               setSensorControlMetadataId(component.metadataId);
             } else {
               setPropertyDialogComponentId(draggedComponentId);
-              setPropertyDialogPosition({ x: component.x, y: component.y });
+              setPropertyDialogPosition({
+                x: component.x * zoomRef.current + panRef.current.x,
+                y: component.y * zoomRef.current + panRef.current.y,
+              });
               setShowPropertyDialog(true);
             }
           }
@@ -1463,7 +1505,7 @@ export const SimulatorCanvas = () => {
                 board={board}
                 running={running}
                 isActive={board.id === activeBoardId}
-                led13={Boolean(components.find((c) => c.id === 'led-builtin')?.properties.state)}
+                led13={Boolean(boardLedStates[board.id])}
                 onMouseDown={(e) => {
                   setClickStartTime(Date.now());
                   setClickStartPos({ x: e.clientX, y: e.clientY });

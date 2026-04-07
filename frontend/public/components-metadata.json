@@ -247,9 +247,19 @@
           "name": "imageData",
           "type": "string",
           "control": "text"
+        },
+        {
+          "name": "protocol",
+          "type": "string",
+          "defaultValue": "i2c",
+          "control": "select",
+          "description": "Communication protocol",
+          "options": ["i2c", "spi"]
         }
       ],
-      "defaultValues": {},
+      "defaultValues": {
+        "protocol": "i2c"
+      },
       "pinCount": 0,
       "tags": [
         "ssd1306"
@@ -1326,7 +1336,8 @@
           "name": "color",
           "type": "string",
           "defaultValue": "red",
-          "control": "text"
+          "control": "select",
+          "options": ["red", "green", "blue", "yellow", "orange", "white", "purple"]
         },
         {
           "name": "lightColor",
