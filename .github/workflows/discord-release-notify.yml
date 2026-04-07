@@ -1,15 +1,16 @@
 name: Discord — Release Merge Notification
 
 on:
-  push:
+  pull_request:
+    types:
+      - closed
     branches:
       - release
 
-# Evitar loop infinito: el bot hace push del CHANGELOG, lo que volveria a disparar este workflow.
-# Con este condicional saltamos si el pusher es el propio bot.
 jobs:
   notify:
-    if: github.actor != 'github-actions[bot]'
+    # Solo cuando el PR fue efectivamente mergeado (no cerrado sin merge)
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
       contents: write   # necesario para pushear CHANGELOG.md
@@ -20,6 +21,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: release
 
       - name: Configure git identity
         run: |
@@ -29,9 +31,9 @@ jobs:
       - name: Generate CHANGELOG entry, commit, then send Discord announcement
         uses: actions/github-script@v7
         env:
-          DAVEAGENT_API_KEY:    ${{ secrets.DAVEAGENT_API_KEY }}
-          DISCORD_BOT_TOKEN:    ${{ secrets.DISCORD_BOT_TOKEN }}
-          DISCORD_CHANNEL_ID:   ${{ secrets.DISCORD_CHANNEL_ID }}
+          DAVEAGENT_API_KEY:   ${{ secrets.DAVEAGENT_API_KEY }}
+          DISCORD_BOT_TOKEN:   ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_CHANNEL_ID:  ${{ secrets.DISCORD_CHANNEL_ID }}
         with:
           script: |
             const { execSync } = require('child_process');
@@ -70,38 +72,38 @@ jobs:
             }
 
             // ── Version ──────────────────────────────────────────────────────
-            let version = '2.0.0';
+            let version = '2.0.1';
             try {
               const pkg = JSON.parse(fs.readFileSync('frontend/package.json', 'utf8'));
-              version = pkg.version ?? '2.0.0';
+              version = pkg.version ?? '2.0.1';
             } catch {}
             console.log(`Version: v${version}`);
 
-            // ── Rango del merge ───────────────────────────────────────────────
-            const sha = context.sha;
-            const parents = git(`cat-file -p ${sha}`)
-              .split('\n').filter(l => l.startsWith('parent'));
-            const isMerge = parents.length >= 2;
-            const baseRef = isMerge ? `${sha}^1` : `${sha}^`;
-            const headRef = isMerge ? `${sha}^2` : sha;
+            // ── Rango exacto del PR mergeado ──────────────────────────────────
+            // base.sha = tip de release ANTES del merge
+            // head.sha = tip de la rama fuente (master u otra)
+            const pr = context.payload.pull_request;
+            const baseSha    = pr.base.sha;
+            const headSha    = pr.head.sha;
+            const sourceBranch = pr.head.ref;        // ej: "master"
+            const prTitle    = pr.title ?? '';
+            const prBody     = pr.body  ?? '';
+
+            console.log(`PR: #${pr.number} "${prTitle}"`);
+            console.log(`Range: ${baseSha.slice(0,7)}..${headSha.slice(0,7)} (${sourceBranch} → release)`);
 
             // Commits que entraron (con hash + subject + body + autor)
-            const rawLog = git(
-              `log ${baseRef}..${headRef} --pretty=format:"%h||%s||%b||%an|||" --no-merges`
-            );
-            const commits = rawLog || git(
-              `log -30 --pretty=format:"%h||%s||%b||%an|||" --no-merges`
-            );
+            const commits = git(
+              `log ${baseSha}..${headSha} --pretty=format:"%h||%s||%b||%an|||" --no-merges`
+            ) || git(`log -30 --pretty=format:"%h||%s||%b||%an|||" --no-merges`);
 
             // Lineas simples para el anuncio Discord
             const commitLines = git(
-              `log ${baseRef}..${headRef} --pretty=format:"%h %s" --no-merges`
+              `log ${baseSha}..${headSha} --pretty=format:"%h %s" --no-merges`
             ) || git(`log -20 --pretty=format:"%h %s" --no-merges`);
 
-            const changedFiles = git(`diff --name-only ${baseRef}..${headRef}`)
+            const changedFiles = git(`diff --name-only ${baseSha}..${headSha}`)
               .split('\n').filter(Boolean);
-            const diffSummary = git(`diff --stat ${baseRef}..${headRef}`)
-              .split('\n').filter(Boolean).pop() ?? '';
 
             console.log(`Commits found: ${commitLines.split('\n').filter(Boolean).length}`);
             console.log(`Files changed: ${changedFiles.length}`);
@@ -112,6 +114,10 @@ jobs:
             const changelogPrompt = `You are generating a CHANGELOG entry for version ${version} of Velxio.
 
             Velxio is a fully local, open-source Arduino/RP2040 emulator and circuit simulator.
+
+            PR TITLE: ${prTitle}
+            PR DESCRIPTION: ${prBody}
+            SOURCE BRANCH: ${sourceBranch}
 
             GIT COMMITS (hash||subject||body||author):
             ${commits}
@@ -146,15 +152,11 @@ jobs:
             let changelogContent;
 
             if (!fs.existsSync(changelogPath)) {
-              changelogContent = `# Changelog
-
-            All notable changes to Velxio will be documented in this file.
-            The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-
-            ${changelogEntry}
-
-            [${version}]: https://github.com/davidmonterocrespo24/velxio/releases/tag/v${version}
-            `;
+              changelogContent = '# Changelog\n\n'
+                + 'All notable changes to Velxio will be documented in this file.\n'
+                + 'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).\n\n'
+                + changelogEntry + '\n\n'
+                + `[${version}]: https://github.com/davidmonterocrespo24/velxio/releases/tag/v${version}\n`;
             } else {
               const existing = fs.readFileSync(changelogPath, 'utf8');
               const lines = existing.split('\n');
@@ -271,8 +273,8 @@ jobs:
             // ──────────────────────────────────────────────────────────────────
             // FASE 3 — Enviar a Discord via Bot API
             // ──────────────────────────────────────────────────────────────────
-            const botToken   = process.env.DISCORD_BOT_TOKEN;
-            const channelId  = process.env.DISCORD_CHANNEL_ID;
+            const botToken  = process.env.DISCORD_BOT_TOKEN;
+            const channelId = process.env.DISCORD_CHANNEL_ID;
             if (!botToken || !channelId) {
               core.setFailed('DISCORD_BOT_TOKEN or DISCORD_CHANNEL_ID secret not configured');
               return;
@@ -298,4 +300,4 @@ jobs:
 
             console.log('='.repeat(70));
             console.log(`Release v${version} announced on Discord`);
-            console.log(`Commits: ${commitLines.split('\n').filter(Boolean).length} | Files: ${changedFiles.length}`);
+            console.log(`PR #${pr.number} | Commits: ${commitLines.split('\n').filter(Boolean).length} | Files: ${changedFiles.length}`);
