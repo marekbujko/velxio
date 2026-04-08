@@ -24,8 +24,9 @@
  *     { type: 'gpio_dir',      data: { pin: number, dir: 0 | 1 } }
  *     { type: 'ledc_update',   data: { channel: number, duty: number, duty_pct: number } }
  *     { type: 'ws2812_update', data: { channel: number, pixels: [number, number, number][] } }
- *     { type: 'i2c_event',     data: { addr: number, data: number } }
- *     { type: 'spi_event',     data: { data: number } }
+ *     { type: 'i2c_event',        data: { addr: number, data: number } }
+ *     { type: 'i2c_transaction',  data: { addr: number, data: number[] } }
+ *     { type: 'spi_event',        data: { data: number } }
  *     { type: 'system',        data: { event: string, ... } }
  *     { type: 'error',         data: { message: string } }
  */
@@ -46,7 +47,7 @@ const API_BASE = (): string =>
   (import.meta.env.VITE_API_BASE as string | undefined) ?? 'http://localhost:8001/api';
 
 /** Returns a stable UUID for this browser tab (persists across reloads, resets on new tab). */
-function getTabSessionId(): string {
+export function getTabSessionId(): string {
   // sessionStorage is not available in Node/test environments
   if (typeof sessionStorage === 'undefined') return crypto.randomUUID();
   const KEY = 'velxio-tab-id';
@@ -60,10 +61,15 @@ function getTabSessionId(): string {
 
 export interface Ws2812Pixel { r: number; g: number; b: number }
 export interface LedcUpdate  { channel: number; duty: number; duty_pct: number; gpio?: number }
+export interface WifiStatus  { status: string; ssid?: string; ip?: string }
+export interface BleStatus   { status: string }
 
 export class Esp32Bridge {
   readonly boardId: string;
   readonly boardKind: BoardKind;
+
+  /** Set to true before connect() to enable WiFi NIC in QEMU. */
+  wifiEnabled = false;
 
   // Callbacks wired up by useSimulatorStore
   onSerialData:    ((char: string, uart?: number) => void) | null = null;
@@ -71,13 +77,16 @@ export class Esp32Bridge {
   onPinDir:        ((gpioPin: number, dir: 0 | 1) => void) | null = null;
   onLedcUpdate:    ((update: LedcUpdate) => void) | null = null;
   onWs2812Update:  ((channel: number, pixels: Ws2812Pixel[]) => void) | null = null;
-  onI2cEvent:      ((addr: number, data: number) => void) | null = null;
-  onSpiEvent:      ((data: number) => void) | null = null;
+  onI2cEvent:        ((addr: number, data: number) => void) | null = null;
+  onI2cTransaction:  ((addr: number, data: number[]) => void) | null = null;
+  onSpiEvent:        ((data: number) => void) | null = null;
   onConnected:     (() => void) | null = null;
   onDisconnected:  (() => void) | null = null;
   onError:         ((msg: string) => void) | null = null;
   onSystemEvent:   ((event: string, data: Record<string, unknown>) => void) | null = null;
   onCrash:         ((data: Record<string, unknown>) => void) | null = null;
+  onWifiStatus:    ((status: WifiStatus) => void) | null = null;
+  onBleStatus:     ((status: BleStatus) => void) | null = null;
 
   private socket: WebSocket | null = null;
   private _connected = false;
@@ -96,6 +105,10 @@ export class Esp32Bridge {
 
   get connected(): boolean {
     return this._connected;
+  }
+
+  get clientId(): string {
+    return getTabSessionId() + '::' + this.boardId;
   }
 
   connect(): void {
@@ -120,6 +133,7 @@ export class Esp32Bridge {
           board: toQemuBoardType(this.boardKind),
           ...(this._pendingFirmware ? { firmware_b64: this._pendingFirmware } : {}),
           sensors: this._pendingSensors,
+          wifi_enabled: this.wifiEnabled,
         },
       });
     };
@@ -185,6 +199,12 @@ export class Esp32Bridge {
           this.onI2cEvent?.(addr, data);
           break;
         }
+        case 'i2c_transaction': {
+          const addr = msg.data.addr as number;
+          const data = msg.data.data as number[];
+          this.onI2cTransaction?.(addr, data);
+          break;
+        }
         case 'spi_event': {
           const data = msg.data.data as number;
           this.onSpiEvent?.(data);
@@ -197,6 +217,18 @@ export class Esp32Bridge {
             this.onCrash?.(msg.data);
           }
           this.onSystemEvent?.(evt, msg.data);
+          break;
+        }
+        case 'wifi_status': {
+          const wifiStatus = msg.data as unknown as WifiStatus;
+          console.log(`[Esp32Bridge:${this.boardId}] wifi_status: ${wifiStatus.status} ssid=${wifiStatus.ssid ?? ''} ip=${wifiStatus.ip ?? ''}`);
+          this.onWifiStatus?.(wifiStatus);
+          break;
+        }
+        case 'ble_status': {
+          const bleStatus = msg.data as unknown as BleStatus;
+          console.log(`[Esp32Bridge:${this.boardId}] ble_status: ${bleStatus.status}`);
+          this.onBleStatus?.(bleStatus);
           break;
         }
         case 'error':
@@ -236,6 +268,11 @@ export class Esp32Bridge {
    */
   setSensors(sensors: Array<Record<string, unknown>>): void {
     this._pendingSensors = sensors;
+  }
+
+  /** Returns true if a firmware has been loaded and is ready to send. */
+  hasFirmware(): boolean {
+    return this._pendingFirmware !== null && this._pendingFirmware !== '';
   }
 
   /**

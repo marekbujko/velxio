@@ -42,6 +42,28 @@ import tempfile
 import threading
 import time
 
+# I2C slave state machines — extracted to a standalone module for testability
+try:
+    from app.services.esp32_i2c_slaves import (
+        MPU6050Slave as _MPU6050Slave,
+        BMP280Slave  as _BMP280Slave,
+        DS1307Slave  as _DS1307Slave,
+        DS3231Slave  as _DS3231Slave,
+        I2CWriteSink as _I2CWriteSink,
+    )
+except ImportError:
+    # Fallback: direct import when running from backend/ directory as subprocess
+    import importlib.util, pathlib
+    _here = pathlib.Path(__file__).parent
+    _spec = importlib.util.spec_from_file_location('esp32_i2c_slaves', _here / 'esp32_i2c_slaves.py')
+    _mod  = importlib.util.module_from_spec(_spec)  # type: ignore[arg-type]
+    _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
+    _MPU6050Slave = _mod.MPU6050Slave  # type: ignore[assignment]
+    _BMP280Slave  = _mod.BMP280Slave   # type: ignore[assignment]
+    _DS1307Slave  = _mod.DS1307Slave   # type: ignore[assignment]
+    _DS3231Slave  = _mod.DS3231Slave   # type: ignore[assignment]
+    _I2CWriteSink = _mod.I2CWriteSink  # type: ignore[assignment]
+
 # ─── stdout helpers ──────────────────────────────────────────────────────────
 
 _stdout_lock = threading.Lock()
@@ -174,10 +196,12 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
         _log(f'Bad config JSON: {exc}')
         os._exit(1)
 
-    lib_path       = cfg['lib_path']
-    firmware_b64   = cfg['firmware_b64']
-    machine        = cfg.get('machine', 'esp32-picsimlab')
-    initial_sensors = cfg.get('sensors', [])
+    lib_path          = cfg['lib_path']
+    firmware_b64      = cfg['firmware_b64']
+    machine           = cfg.get('machine', 'esp32-picsimlab')
+    initial_sensors   = cfg.get('sensors', [])
+    wifi_enabled      = cfg.get('wifi_enabled', False)
+    wifi_hostfwd_port = cfg.get('wifi_hostfwd_port', 0)
 
     # Adjust GPIO pinmap based on chip: ESP32-C3 has only 22 GPIOs
     if 'c3' in machine:
@@ -188,6 +212,8 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
     if os.name == 'nt' and os.path.isdir(_MINGW64_BIN):
         os.add_dll_directory(_MINGW64_BIN)
     try:
+        lib_size = os.path.getsize(lib_path) if os.path.isfile(lib_path) else 0
+        _log(f'Loading library: {lib_path} ({lib_size} bytes)')
         lib = ctypes.CDLL(lib_path)
     except Exception as exc:
         _emit({'type': 'error', 'message': f'Cannot load DLL: {exc}'})
@@ -213,6 +239,24 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
         b'-L', rom_dir,
         b'-drive', f'file={firmware_path},if=mtd,format=raw'.encode(),
     ]
+
+    # Deterministic instruction counting for stable timers.
+    # Required for ESP32-C3 boot (RISC-V needs deterministic timing).
+    # For ESP32 (Xtensa), -icount is NOT used: the WiFi AP beacon timer
+    # runs on QEMU_CLOCK_REALTIME, so decoupling virtual time from real
+    # time can cause beacon delivery issues on slow/virtualized hosts.
+    if 'c3' in machine:
+        args_list.extend([b'-icount', b'3'])
+
+    # ── WiFi NIC (slirp user-mode networking) ──────────────────────────────
+    if wifi_enabled:
+        nic_model = 'esp32c3_wifi' if 'c3' in machine else 'esp32_wifi'
+        nic_arg = f'user,model={nic_model},net=192.168.4.0/24'
+        if wifi_hostfwd_port:
+            nic_arg += f',hostfwd=tcp::{wifi_hostfwd_port}-192.168.4.15:80'
+        args_list.extend([b'-nic', nic_arg.encode()])
+        _log(f'WiFi enabled: -nic {nic_arg}')
+
     argc = len(args_list)
     argv = (ctypes.c_char_p * argc)(*args_list)
 
@@ -220,7 +264,8 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
     _stopped       = threading.Event()      # set on "stop" command
     _init_done     = threading.Event()      # set when qemu_init() returns
     _sensors_ready = threading.Event()      # set after pre-registering initial sensors
-    _i2c_responses: dict[int, int] = {}     # 7-bit addr → response byte
+    _i2c_responses: dict[int, int] = {}     # 7-bit addr → response byte (simple)
+    _i2c_slaves:    dict = {}               # 7-bit addr → I2C slave/sink instance
     _spi_response   = [0xFF]                # MISO byte for SPI transfers
     _rmt_decoders:  dict[int, _RmtDecoder] = {}
     _uart0_buf      = bytearray()           # accumulate UART0 for crash detection
@@ -514,6 +559,14 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
                     _reboot_count[0] += 1
                     _emit({'type': 'system', 'event': 'reboot',
                            'count': _reboot_count[0]})
+                # WiFi progress logging (only in debug — helps diagnose prod issues)
+                if wifi_enabled:
+                    line = chunk.decode('utf-8', errors='replace').strip()
+                    if any(kw in line.lower() for kw in (
+                        'wifi', 'connect', 'ip address', 'wl_connected',
+                        'dhcp', 'sta_start', 'sta_got_ip', 'sta_disconnect',
+                    )):
+                        _log(f'[wifi-uart] {line}')
 
     def _on_rmt_event(channel: int, config0: int, value: int) -> None:
         if _stopped.is_set():
@@ -530,6 +583,15 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
 
     def _on_i2c_event(bus_id: int, addr: int, event: int) -> int:
         """Synchronous — must return immediately; called from QEMU thread."""
+        # Register-map slaves (MPU-6050, etc.) take priority over static responses
+        slave = _i2c_slaves.get(addr)
+        op     = event & 0xFF
+        data   = (event >> 8) & 0xFF
+        if slave is not None:
+            result = slave.handle_event(event)
+            _log(f'I2C bus={bus_id} addr=0x{addr:02x} event=0x{event:04x} op=0x{op:02x} data=0x{data:02x} result=0x{result:02x} slave={type(slave).__name__} reg_ptr=0x{getattr(slave,"reg_ptr",0):02x}')
+            return result
+        _log(f'I2C bus={bus_id} addr=0x{addr:02x} event=0x{event:04x} op=0x{op:02x} NO_SLAVE registered={list(_i2c_slaves.keys())}')
         resp = _i2c_responses.get(addr, 0)
         if not _stopped.is_set():
             _emit({'type': 'i2c_event', 'bus': bus_id, 'addr': addr,
@@ -581,6 +643,25 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
     os.dup2(_nul, 0)
     os.close(_nul)
 
+    # Also redirect fd 1 (stdout) to /dev/null so QEMU's -nographic UART mux
+    # doesn't write raw UART bytes onto our JSON event pipe.  Without this:
+    #   1. Raw UART bytes prefix each JSON line, corrupting the protocol.
+    #   2. On a busy host the pipe fills up, causing _on_uart_tx (called
+    #      synchronously from qemu_main_loop) to block inside sys.stdout.flush(),
+    #      which stalls qemu_main_loop() and prevents QEMU_CLOCK_REALTIME timers
+    #      (including Esp32_WLAN_beacon_timer) from firing → WiFi never connects.
+    # Save the real pipe fd and rebind sys.stdout so _emit() keeps working.
+    import io as _io
+    _orig_stdout_fd = os.dup(1)
+    _nul_w = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(_nul_w, 1)
+    os.close(_nul_w)
+    sys.stdout = _io.TextIOWrapper(
+        _io.FileIO(_orig_stdout_fd, mode='w', closefd=True),
+        line_buffering=True,
+        write_through=True,
+    )
+
     qemu_t = threading.Thread(target=_qemu_thread, daemon=True, name=f'qemu-{machine}')
     qemu_t.start()
 
@@ -593,17 +674,49 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
         gpio = int(s.get('pin', 0))
         sensor_type = s.get('sensor_type', '')
         with _sensors_lock:
-            _sensors[gpio] = {
+            sensor_data: dict = {
                 'type': sensor_type,
                 **{k: v for k, v in s.items() if k not in ('sensor_type', 'pin')},
                 'saw_low': False,
                 'responding': False,
             }
-        _log(f'Pre-registered sensor {sensor_type} on GPIO {gpio}')
+            # For I2C sensors, also create the slave state machine immediately
+            # so _on_i2c_event can find it when the firmware's Wire.begin() runs.
+            if sensor_type == 'mpu6050':
+                i2c_addr = int(s.get('addr', 0x68))
+                slave = _MPU6050Slave(i2c_addr)
+                _i2c_slaves[i2c_addr] = slave
+                sensor_data['i2c_addr'] = i2c_addr
+                sensor_data['slave'] = slave
+            elif sensor_type == 'bmp280':
+                i2c_addr = int(s.get('addr', 0x76))
+                slave = _BMP280Slave(i2c_addr)
+                if 'temperature' in s: slave.update(float(s['temperature']), slave._press_hpa)
+                if 'pressure'    in s: slave.update(slave._temp_c, float(s['pressure']))
+                _i2c_slaves[i2c_addr] = slave
+                sensor_data['i2c_addr'] = i2c_addr
+                sensor_data['slave'] = slave
+            elif sensor_type in ('ds1307', 'ds3231'):
+                i2c_addr = int(s.get('addr', 0x68))
+                slave = _DS3231Slave() if sensor_type == 'ds3231' else _DS1307Slave()
+                _i2c_slaves[i2c_addr] = slave
+                sensor_data['i2c_addr'] = i2c_addr
+                sensor_data['slave'] = slave
+            elif sensor_type in ('ssd1306', 'pcf8574'):
+                default_addr = 0x3C if sensor_type == 'ssd1306' else 0x27
+                i2c_addr = int(s.get('addr', default_addr))
+                sink = _I2CWriteSink(i2c_addr, _emit)
+                _i2c_slaves[i2c_addr] = sink
+                sensor_data['i2c_addr'] = i2c_addr
+                sensor_data['slave'] = sink
+            _sensors[gpio] = sensor_data
     _sensors_ready.set()
+    _log(f'esp32_i2c_slaves: MPU6050Slave default reg_ptr=0x{_MPU6050Slave().reg_ptr:02x} (expect 0x75)')
+    _log(f'_i2c_slaves registered: {list(_i2c_slaves.keys())}')
 
     _emit({'type': 'system', 'event': 'booted'})
     _log(f'QEMU started: machine={machine} firmware={firmware_path}')
+    _log(f'QEMU args: {[a.decode() for a in args_list]}')
 
     # ── 7. LEDC polling thread (100 ms interval) ──────────────────────────────
 
@@ -675,13 +788,39 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
             gpio = int(cmd['pin'])
             sensor_type = cmd.get('sensor_type', '')
             with _sensors_lock:
-                _sensors[gpio] = {
+                sensor_data: dict = {
                     'type': sensor_type,
                     **{k: v for k, v in cmd.items()
                        if k not in ('cmd', 'pin', 'sensor_type')},
                     'saw_low': False,
                     'responding': False,
                 }
+                if sensor_type == 'mpu6050':
+                    i2c_addr = int(cmd.get('addr', 0x68))
+                    slave = _MPU6050Slave(i2c_addr)
+                    _i2c_slaves[i2c_addr] = slave
+                    sensor_data['i2c_addr'] = i2c_addr
+                    sensor_data['slave'] = slave
+                elif sensor_type == 'bmp280':
+                    i2c_addr = int(cmd.get('addr', 0x76))
+                    slave = _BMP280Slave(i2c_addr)
+                    _i2c_slaves[i2c_addr] = slave
+                    sensor_data['i2c_addr'] = i2c_addr
+                    sensor_data['slave'] = slave
+                elif sensor_type in ('ds1307', 'ds3231'):
+                    i2c_addr = int(cmd.get('addr', 0x68))
+                    slave = _DS3231Slave() if sensor_type == 'ds3231' else _DS1307Slave()
+                    _i2c_slaves[i2c_addr] = slave
+                    sensor_data['i2c_addr'] = i2c_addr
+                    sensor_data['slave'] = slave
+                elif sensor_type in ('ssd1306', 'pcf8574'):
+                    default_addr = 0x3C if sensor_type == 'ssd1306' else 0x27
+                    i2c_addr = int(cmd.get('addr', default_addr))
+                    sink = _I2CWriteSink(i2c_addr, _emit)
+                    _i2c_slaves[i2c_addr] = sink
+                    sensor_data['i2c_addr'] = i2c_addr
+                    sensor_data['slave'] = sink
+                _sensors[gpio] = sensor_data
             _log(f'Sensor {sensor_type} attached on GPIO {gpio}')
 
         elif c == 'sensor_update':
@@ -692,11 +831,32 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
                     for k, v in cmd.items():
                         if k not in ('cmd', 'pin'):
                             sensor[k] = v
+                    stype = sensor.get('type')
+                    slave = sensor.get('slave')
+                    if stype == 'mpu6050' and slave is not None:
+                        slave.update(
+                            accel_x=float(sensor.get('accelX', 0)),
+                            accel_y=float(sensor.get('accelY', 0)),
+                            accel_z=float(sensor.get('accelZ', 1)),
+                            gyro_x =float(sensor.get('gyroX',  0)),
+                            gyro_y =float(sensor.get('gyroY',  0)),
+                            gyro_z =float(sensor.get('gyroZ',  0)),
+                            temp   =float(sensor.get('temp',   25.0)),
+                        )
+                    elif stype == 'bmp280' and slave is not None:
+                        slave.update(
+                            temperature_c =float(sensor.get('temperature', 25.0)),
+                            pressure_hpa  =float(sensor.get('pressure', 1013.25)),
+                        )
+                    elif stype == 'ds3231' and slave is not None:
+                        slave.temperatureC = float(sensor.get('temperature', 25.0))
 
         elif c == 'sensor_detach':
             gpio = int(cmd['pin'])
             with _sensors_lock:
-                _sensors.pop(gpio, None)
+                sensor = _sensors.pop(gpio, None)
+                if sensor and 'i2c_addr' in sensor:
+                    _i2c_slaves.pop(sensor['i2c_addr'], None)
             _log(f'Sensor detached from GPIO {gpio}')
 
         elif c == 'stop':

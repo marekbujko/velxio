@@ -31,6 +31,26 @@ const SENSOR_COMPONENT_MAP: Record<string, {
   'hc-sr04': { sensorType: 'hc-sr04', dataPinName: 'TRIG', propertyKeys: ['distance'], extraPins: { echo_pin: 'ECHO' } },
 };
 
+// ── I2C sensor pre-registration ───────────────────────────────────────────────
+// I2C sensors use virtual pins (200 + i2c_addr) instead of real GPIO pins.
+// They are identified by I2C address and do not need wire-resolution.
+// `addrProp` is the component property that overrides the default address.
+const I2C_SENSOR_MAP: Record<string, {
+  sensorType: string;
+  defaultAddr: number;
+  addrProp?: string;       // property key that holds the I2C address (e.g. 'address')
+  addrIsBool?: boolean;    // true when addrProp is a boolean flag (e.g. AD0 → 0x68/0x69)
+  addrBoolHigh?: number;   // address when the boolean flag is truthy
+  propertyKeys?: string[]; // additional sensor values to forward (e.g. temperature, pressure)
+}> = {
+  'mpu6050': { sensorType: 'mpu6050', defaultAddr: 0x68, addrProp: 'ad0', addrIsBool: true, addrBoolHigh: 0x69 },
+  'bmp280':  { sensorType: 'bmp280',  defaultAddr: 0x76, addrProp: 'address', propertyKeys: ['temperature', 'pressure'] },
+  'ds1307':  { sensorType: 'ds1307',  defaultAddr: 0x68 },
+  'ds3231':  { sensorType: 'ds3231',  defaultAddr: 0x68, propertyKeys: ['temperature'] },
+  'ssd1306': { sensorType: 'ssd1306', defaultAddr: 0x3C },
+  'pcf8574': { sensorType: 'pcf8574', defaultAddr: 0x27, addrProp: 'i2cAddress' },
+};
+
 // ── Legacy type aliases (keep external consumers working) ──────────────────
 export type BoardType = 'arduino-uno' | 'arduino-nano' | 'arduino-mega' | 'raspberry-pi-pico';
 
@@ -110,6 +130,23 @@ class Esp32BridgeShim {
   }
   unregisterSensor(pin: number): void {
     this.bridge.sendSensorDetach(pin);
+  }
+
+  // ── I2C write-only device relay (SSD1306, PCF8574) ───────────────────────
+  private _i2cTransactionListeners = new Map<number, (data: number[]) => void>();
+
+  addI2CTransactionListener(addr: number, fn: (data: number[]) => void): void {
+    this._i2cTransactionListeners.set(addr, fn);
+    this.bridge.onI2cTransaction = (a: number, data: number[]) => {
+      this._i2cTransactionListeners.get(a)?.(data);
+    };
+  }
+
+  removeI2CTransactionListener(addr: number): void {
+    this._i2cTransactionListeners.delete(addr);
+    if (this._i2cTransactionListeners.size === 0) {
+      this.bridge.onI2cTransaction = null;
+    }
   }
 }
 
@@ -423,6 +460,16 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
             );
           }
         };
+        bridge.onWifiStatus = (ws) => {
+          set((s) => ({
+            boards: s.boards.map((b) => b.id === id ? { ...b, wifiStatus: ws } : b),
+          }));
+        };
+        bridge.onBleStatus = (bs) => {
+          set((s) => ({
+            boards: s.boards.map((b) => b.id === id ? { ...b, bleStatus: bs } : b),
+          }));
+        };
         esp32BridgeMap.set(id, bridge);
         // Provide a shim so PartSimulationRegistry components (DHT22, etc.)
         // can call setPinState / access pinManager on ESP32 boards.
@@ -477,6 +524,7 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
     },
 
     removeBoard: (boardId: string) => {
+      const board = get().boards.find((b) => b.id === boardId);
       getBoardSimulator(boardId)?.stop();
       simulatorMap.delete(boardId);
       pinManagerMap.delete(boardId);
@@ -489,8 +537,16 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
         const activeBoardId = s.activeBoardId === boardId
           ? (boards[0]?.id ?? null)
           : s.activeBoardId;
-        return { boards, activeBoardId };
+        // Remove wires connected to this board
+        const wires = s.wires.filter((w) =>
+          w.start.componentId !== boardId && w.end.componentId !== boardId
+        );
+        return { boards, activeBoardId, wires };
       });
+      // Clean up file group in editor store
+      if (board) {
+        useEditorStore.getState().deleteFileGroup(board.activeFileGroupId);
+      }
     },
 
     updateBoard: (boardId: string, updates: Partial<BoardInstance>) => {
@@ -534,11 +590,14 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
       if (!board) return;
 
       if (isEsp32Kind(board.boardKind)) {
-        // Xtensa ESP32 boards: program is base64-encoded .bin — send to QEMU via bridge
+        // All ESP32 boards (Xtensa + RISC-V C3): send firmware to QEMU via bridge.
+        // Note: isEsp32Kind() includes C3 boards, so they route through Esp32Bridge
+        // for full WiFi/BLE emulation via qemu-system-riscv32.
         const esp32Bridge = getEsp32Bridge(boardId);
         if (esp32Bridge) esp32Bridge.loadFirmware(program);
       } else if (isRiscVEsp32Kind(board.boardKind)) {
-        // RISC-V ESP32-C3 boards: parse merged flash image and load into browser emulator
+        // Fallback: browser-only RV32IMC emulation (no WiFi/BLE support).
+        // Currently unreachable because isEsp32Kind() above includes C3 boards.
         const sim = getBoardSimulator(boardId);
         if (sim instanceof Esp32C3Simulator) {
           try {
@@ -702,7 +761,62 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
               break; // only one data pin per sensor
             }
           }
+
+          // Pre-register I2C sensors (virtual pin = 200 + i2c_addr, no wire resolution needed)
+          for (const comp of components) {
+            const i2cDef = I2C_SENSOR_MAP[comp.metadataId];
+            if (!i2cDef) continue;
+            // Resolve I2C address from component property or use default
+            let addr = i2cDef.defaultAddr;
+            if (i2cDef.addrProp) {
+              const rawAddr = comp.properties[i2cDef.addrProp];
+              if (rawAddr !== undefined) {
+                if (i2cDef.addrIsBool) {
+                  // Boolean flag (e.g. AD0 on MPU-6050): truthy → high address
+                  if (rawAddr === true || rawAddr === 'true' || rawAddr === '1') {
+                    addr = i2cDef.addrBoolHigh ?? i2cDef.defaultAddr;
+                  }
+                } else {
+                  const parsed = typeof rawAddr === 'string'
+                    ? (rawAddr.startsWith('0x') ? parseInt(rawAddr, 16) : parseInt(rawAddr, 10))
+                    : Number(rawAddr);
+                  if (!isNaN(parsed)) addr = parsed;
+                }
+              }
+            }
+            const virtualPin = 200 + addr;
+            const props: Record<string, unknown> = { sensor_type: i2cDef.sensorType, pin: virtualPin, addr };
+            for (const key of (i2cDef.propertyKeys ?? [])) {
+              const val = comp.properties[key];
+              if (val !== undefined) props[key] = typeof val === 'string' ? parseFloat(val) : val;
+            }
+            sensors.push(props);
+          }
+
           esp32Bridge.setSensors(sensors);
+
+          // Use WiFi flag set by the compiler (most reliable — avoids stale file group issues).
+          // Fall back to scanning the active file group if the flag hasn't been set yet.
+          let hasWifi = board.hasWifi;
+          if (hasWifi === undefined) {
+            const editorState = useEditorStore.getState();
+            const rawFiles = editorState.fileGroups[board.activeFileGroupId];
+            const boardFiles = (rawFiles && rawFiles.length > 0) ? rawFiles : editorState.files;
+            hasWifi = boardFiles.some(f =>
+              f.content.includes('#include <WiFi.h>') ||
+              f.content.includes('#include <esp_wifi.h>') ||
+              f.content.includes('#include "WiFi.h"') ||
+              f.content.includes('WiFi.begin(')
+            );
+          }
+          esp32Bridge.wifiEnabled = hasWifi;
+
+          // Ensure firmware is loaded into the bridge (handles page-refresh case
+          // where _pendingFirmware is lost but compiledProgram is still in store).
+          if (!esp32Bridge.hasFirmware() && board.compiledProgram) {
+            esp32Bridge.loadFirmware(board.compiledProgram);
+          }
+
           esp32Bridge.connect();
         }
       } else {
@@ -1085,24 +1199,24 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
         metadataId: 'led',
         x: 350,
         y: 100,
-        properties: { color: 'red', pin: 13, state: false },
+        properties: { color: 'red' },
       },
     ],
 
     wires: [
       {
-        id: 'wire-test-1',
-        start: { componentId: 'arduino-uno', pinName: 'GND.1', x: 0, y: 0 },
+        id: 'wire-builtin-anode',
+        start: { componentId: 'arduino-uno', pinName: '13', x: 0, y: 0 },
         end: { componentId: 'led-builtin', pinName: 'A', x: 0, y: 0 },
         waypoints: [],
-        color: '#000000',
+        color: '#22c55e',
       },
       {
-        id: 'wire-test-2',
-        start: { componentId: 'arduino-uno', pinName: '13', x: 0, y: 0 },
+        id: 'wire-builtin-cathode',
+        start: { componentId: 'arduino-uno', pinName: 'GND.1', x: 0, y: 0 },
         end: { componentId: 'led-builtin', pinName: 'C', x: 0, y: 0 },
         waypoints: [],
-        color: '#22c55e',
+        color: '#000000',
       },
     ],
     selectedWireId: null,

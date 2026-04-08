@@ -37,6 +37,16 @@ export const BOARD_SUPPORTS_MICROPYTHON = new Set<BoardKind>([
   'aitewinrobot-esp32c3-supermini',
 ]);
 
+export interface WifiStatus {
+  status: string;       // 'initializing' | 'connected' | 'got_ip' | 'disconnected'
+  ssid?: string;
+  ip?: string;
+}
+
+export interface BleStatus {
+  status: string;       // 'initialized' | 'advertising'
+}
+
 export interface BoardInstance {
   id: string;                   // unique in canvas, e.g. 'arduino-uno', 'raspberry-pi-3'
   boardKind: BoardKind;
@@ -49,6 +59,9 @@ export interface BoardInstance {
   serialMonitorOpen: boolean;
   activeFileGroupId: string;
   languageMode: LanguageMode;     // 'arduino' (default) or 'micropython'
+  hasWifi?: boolean;         // set by compiler — true when sketch uses WiFi
+  wifiStatus?: WifiStatus;
+  bleStatus?: BleStatus;
 }
 
 export const BOARD_KIND_LABELS: Record<BoardKind, string> = {
