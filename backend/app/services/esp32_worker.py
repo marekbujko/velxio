@@ -581,17 +581,59 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
         if pixels:
             _emit({'type': 'ws2812_update', 'channel': channel, 'pixels': pixels})
 
+    # ── Per-slave I2C event counter (for logging) ─────────────────────────────
+    _i2c_event_seq: dict = {}   # addr → event count
+
+    _I2C_OP_NAME = {0x00: 'START_RECV', 0x01: 'START_SEND', 0x02: 'START_ASYNC',
+                    0x03: 'FINISH',    0x04: 'NACK',
+                    0x05: 'WRITE',     0x06: 'READ'}
+    _MPU_REG_NAME = {
+        0x19: 'SMPRT_DIV', 0x1A: 'CONFIG', 0x1B: 'GYRO_CFG', 0x1C: 'ACCEL_CFG',
+        0x3B: 'AX_H', 0x3C: 'AX_L', 0x3D: 'AY_H', 0x3E: 'AY_L',
+        0x3F: 'AZ_H', 0x40: 'AZ_L', 0x41: 'T_H',  0x42: 'T_L',
+        0x43: 'GX_H', 0x44: 'GX_L', 0x45: 'GY_H', 0x46: 'GY_L',
+        0x47: 'GZ_H', 0x48: 'GZ_L',
+        0x6B: 'PWR_MGMT1', 0x68: 'SIG_RST', 0x75: 'WHO_AM_I',
+    }
+
     def _on_i2c_event(bus_id: int, addr: int, event: int) -> int:
         """Synchronous — must return immediately; called from QEMU thread."""
-        # Register-map slaves (MPU-6050, etc.) take priority over static responses
         slave = _i2c_slaves.get(addr)
-        op     = event & 0xFF
-        data   = (event >> 8) & 0xFF
+        op    = event & 0xFF
+        data  = (event >> 8) & 0xFF
+        op_name = _I2C_OP_NAME.get(op, f'0x{op:02x}')
+
         if slave is not None:
-            result = slave.handle_event(event)
-            _log(f'I2C bus={bus_id} addr=0x{addr:02x} event=0x{event:04x} op=0x{op:02x} data=0x{data:02x} result=0x{result:02x} slave={type(slave).__name__} reg_ptr=0x{getattr(slave,"reg_ptr",0):02x}')
+            result  = slave.handle_event(event)
+            reg_ptr = getattr(slave, 'reg_ptr', 0)
+
+            # Build descriptive annotation
+            if op in (0x00, 0x01):   # START_RECV / START_SEND
+                note = f'→ reg_ptr=0x{reg_ptr:02x}'
+            elif op == 0x06:  # READ byte (actual data delivery to firmware)
+                reg_nm = _MPU_REG_NAME.get((reg_ptr - 1) & 0xFF, f'0x{(reg_ptr-1)&0xFF:02x}')
+                note = f'→ {reg_nm}=0x{result:02x}'
+            elif op == 0x05:  # WRITE byte
+                note = f'byte=0x{data:02x} → reg_ptr=0x{reg_ptr:02x}'
+            else:
+                note = ''
+
+            if type(slave).__name__ == 'MPU6050Slave':
+                seq = _i2c_event_seq
+                n   = seq[addr] = seq.get(addr, 0) + 1
+                _log(f'I2C #{n:03d} bus={bus_id} addr=0x{addr:02x} {op_name} {note}')
+            else:
+                _log(f'I2C bus={bus_id} addr=0x{addr:02x} event=0x{event:04x} '
+                     f'op={op_name} result=0x{result:02x} slave={type(slave).__name__}')
+            # Emit trace event to WebSocket so JS test can observe I2C traffic
+            if not _stopped.is_set():
+                _emit({'type': 'i2c_trace', 'bus': bus_id, 'addr': addr,
+                       'event': event, 'op': op_name, 'result': result,
+                       'reg_ptr': reg_ptr})
             return result
-        _log(f'I2C bus={bus_id} addr=0x{addr:02x} event=0x{event:04x} op=0x{op:02x} NO_SLAVE registered={list(_i2c_slaves.keys())}')
+
+        _log(f'I2C bus={bus_id} addr=0x{addr:02x} event=0x{event:04x} op={op_name} '
+             f'NO_SLAVE registered={list(_i2c_slaves.keys())}')
         resp = _i2c_responses.get(addr, 0)
         if not _stopped.is_set():
             _emit({'type': 'i2c_event', 'bus': bus_id, 'addr': addr,
@@ -711,7 +753,6 @@ def main() -> None:  # noqa: C901  (complexity OK for inline worker)
                 sensor_data['slave'] = sink
             _sensors[gpio] = sensor_data
     _sensors_ready.set()
-    _log(f'esp32_i2c_slaves: MPU6050Slave default reg_ptr=0x{_MPU6050Slave().reg_ptr:02x} (expect 0x75)')
     _log(f'_i2c_slaves registered: {list(_i2c_slaves.keys())}')
 
     _emit({'type': 'system', 'event': 'booted'})
