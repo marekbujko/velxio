@@ -64,6 +64,7 @@ export async function loadExample(
   const {
     setComponents, setWires, setBoardType,
     activeBoardId, boards, addBoard, removeBoard, setActiveBoardId,
+    recalculateAllWirePositions,
   } = useSimulatorStore.getState();
 
   if (example.boards && example.boards.length > 0) {
@@ -138,6 +139,7 @@ export async function loadExample(
         waypoints: [],
       })),
     );
+    recalculateAllWirePositions();
   } else {
     // ── Single-board loading ─────────────────────────────────────────────
     const targetBoard = example.boardType || 'arduino-uno';
@@ -172,5 +174,6 @@ export async function loadExample(
         waypoints: [],
       })),
     );
+    recalculateAllWirePositions();
   }
 }

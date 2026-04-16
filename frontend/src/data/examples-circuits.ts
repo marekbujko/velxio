@@ -8,8 +8,8 @@
 import type { ExampleProject } from './examples';
 
 // ─── Helper: standard Arduino Uno at (100,100) ─────────────────────────────
-const UNO = { type: 'wokwi-arduino-uno', id: 'uno', x: 100, y: 100, properties: {} };
-const MEGA = { type: 'wokwi-arduino-mega', id: 'mega', x: 80, y: 80, properties: {} };
+const UNO = { type: 'wokwi-arduino-uno', id: 'arduino-uno', x: 100, y: 100, properties: {} };
+const MEGA = { type: 'wokwi-arduino-mega', id: 'arduino-mega', x: 80, y: 80, properties: {} };
 const ESP32 = { type: 'wokwi-esp32-devkit-v1', id: 'esp32', x: 80, y: 80, properties: {} };
 
 function w(id: string, from: [string,string], to: [string,string], color = '#00aaff') {
@@ -26,7 +26,7 @@ export const circuitExamples: ExampleProject[] = [
     id: 'voltage-divider',
     title: 'Voltage Divider',
     description: 'R1 + R2 divide 5V into a lower voltage read by ADC. Fundamental analog circuit.',
-    category: 'basics', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// Voltage Divider — reads V_out = 5 * R2/(R1+R2)
 void setup() { Serial.begin(9600); }
 void loop() {
@@ -41,10 +41,10 @@ void loop() {
       { type: 'wokwi-resistor', id: 'r2', x: 350, y: 200, properties: { value: '10000' } },
     ],
     wires: [
-      w('w1', ['uno','5V'], ['r1','1'], '#ff0000'),
+      w('w1', ['arduino-uno','5V'], ['r1','1'], '#ff0000'),
       w('w2', ['r1','2'], ['r2','1'], '#00aaff'),
-      w('w3', ['r2','2'], ['uno','GND'], '#000000'),
-      w('w4', ['r1','2'], ['uno','A0'], '#ffaa00'),
+      w('w3', ['r2','2'], ['arduino-uno','GND'], '#000000'),
+      w('w4', ['r1','2'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -52,7 +52,7 @@ void loop() {
     id: 'rc-low-pass-filter',
     title: 'RC Low-Pass Filter',
     description: 'PWM output filtered by RC gives smooth analog voltage. Classic DAC trick.',
-    category: 'basics', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// RC Low-Pass Filter
 // PWM on pin 9 → R=10k → C=10uF → smooth DC on A0
 void setup() { Serial.begin(9600); analogWrite(9, 128); } // 50% duty
@@ -66,9 +66,9 @@ void loop() {
       { type: 'wokwi-resistor', id: 'r1', x: 350, y: 100, properties: { value: '10000' } },
     ],
     wires: [
-      w('w1', ['uno','9'], ['r1','1'], '#00aaff'),
-      w('w2', ['r1','2'], ['uno','A0'], '#ffaa00'),
-      w('w3', ['r1','2'], ['uno','GND'], '#000000'),
+      w('w1', ['arduino-uno','9'], ['r1','1'], '#00aaff'),
+      w('w2', ['r1','2'], ['arduino-uno','A0'], '#ffaa00'),
+      w('w3', ['r1','2'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -76,7 +76,7 @@ void loop() {
     id: 'wheatstone-bridge',
     title: 'Wheatstone Bridge',
     description: 'Four-resistor bridge detects tiny resistance changes. Used in strain gauges and load cells.',
-    category: 'sensors', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// Wheatstone Bridge — detects R imbalance
 void setup() { Serial.begin(9600); }
 void loop() {
@@ -94,14 +94,14 @@ void loop() {
       { type: 'wokwi-resistor', id: 'r4', x: 500, y: 200, properties: { value: '10000' } },
     ],
     wires: [
-      w('w1', ['uno','5V'], ['r1','1'], '#ff0000'),
-      w('w2', ['uno','5V'], ['r2','1'], '#ff0000'),
+      w('w1', ['arduino-uno','5V'], ['r1','1'], '#ff0000'),
+      w('w2', ['arduino-uno','5V'], ['r2','1'], '#ff0000'),
       w('w3', ['r1','2'], ['r3','1'], '#00aaff'),
       w('w4', ['r2','2'], ['r4','1'], '#00aaff'),
-      w('w5', ['r3','2'], ['uno','GND'], '#000000'),
-      w('w6', ['r4','2'], ['uno','GND'], '#000000'),
-      w('w7', ['r1','2'], ['uno','A0'], '#ffaa00'),
-      w('w8', ['r2','2'], ['uno','A1'], '#ffaa00'),
+      w('w5', ['r3','2'], ['arduino-uno','GND'], '#000000'),
+      w('w6', ['r4','2'], ['arduino-uno','GND'], '#000000'),
+      w('w7', ['r1','2'], ['arduino-uno','A0'], '#ffaa00'),
+      w('w8', ['r2','2'], ['arduino-uno','A1'], '#ffaa00'),
     ],
   },
 
@@ -109,7 +109,7 @@ void loop() {
     id: 'ntc-temperature',
     title: 'NTC Temperature Sensor',
     description: 'NTC thermistor + 10k pull-up resistor. Calculates temperature via beta model.',
-    category: 'sensors', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// NTC Temperature Sensor (beta model)
 #define NTC_PIN A0
 #define R_PULL 10000.0
@@ -133,10 +133,10 @@ void loop() {
       { type: 'wokwi-ntc-temperature-sensor', id: 'ntc', x: 350, y: 200, properties: { temperature: '25' } },
     ],
     wires: [
-      w('w1', ['uno','5V'], ['rpull','1'], '#ff0000'),
+      w('w1', ['arduino-uno','5V'], ['rpull','1'], '#ff0000'),
       w('w2', ['rpull','2'], ['ntc','1'], '#ffaa00'),
-      w('w3', ['ntc','2'], ['uno','GND'], '#000000'),
-      w('w4', ['rpull','2'], ['uno','A0'], '#ffaa00'),
+      w('w3', ['ntc','2'], ['arduino-uno','GND'], '#000000'),
+      w('w4', ['rpull','2'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -144,7 +144,7 @@ void loop() {
     id: 'led-current-limiting',
     title: 'LED with Current-Limiting Resistor',
     description: 'Calculate R to set LED current to 10mA. I = (Vcc-Vf)/R.',
-    category: 'basics', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// LED with current-limiting resistor
 // R = (5V - 2V) / 10mA = 300 ohm
 void setup() { pinMode(13, OUTPUT); }
@@ -158,9 +158,9 @@ void loop() {
       { type: 'wokwi-led', id: 'led1', x: 380, y: 220, properties: { color: 'red' } },
     ],
     wires: [
-      w('w1', ['uno','13'], ['r1','1'], '#00aaff'),
+      w('w1', ['arduino-uno','13'], ['r1','1'], '#00aaff'),
       w('w2', ['r1','2'], ['led1','A'], '#00aaff'),
-      w('w3', ['led1','C'], ['uno','GND'], '#000000'),
+      w('w3', ['led1','C'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -168,7 +168,7 @@ void loop() {
     id: 'parallel-resistors',
     title: 'Parallel Resistors',
     description: 'Three resistors in parallel: R_total = 1/(1/R1+1/R2+1/R3). Measure with ADC.',
-    category: 'basics', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// Parallel Resistors — measure equivalent R via voltage divider
 // R_series = 10k, R_parallel = 1/(1/10k + 1/10k + 1/10k) = 3.33k
 // V_out = 5 * R_par / (R_ser + R_par) = 5 * 3.33 / 13.33 = 1.25V
@@ -186,14 +186,14 @@ void loop() {
       { type: 'wokwi-resistor', id: 'r3', x: 490, y: 200, properties: { value: '10000' } },
     ],
     wires: [
-      w('w1', ['uno','5V'], ['rs','1'], '#ff0000'),
+      w('w1', ['arduino-uno','5V'], ['rs','1'], '#ff0000'),
       w('w2', ['rs','2'], ['r1','1'], '#ffaa00'),
       w('w3', ['rs','2'], ['r2','1'], '#ffaa00'),
       w('w4', ['rs','2'], ['r3','1'], '#ffaa00'),
-      w('w5', ['r1','2'], ['uno','GND'], '#000000'),
-      w('w6', ['r2','2'], ['uno','GND'], '#000000'),
-      w('w7', ['r3','2'], ['uno','GND'], '#000000'),
-      w('w8', ['rs','2'], ['uno','A0'], '#ffaa00'),
+      w('w5', ['r1','2'], ['arduino-uno','GND'], '#000000'),
+      w('w6', ['r2','2'], ['arduino-uno','GND'], '#000000'),
+      w('w7', ['r3','2'], ['arduino-uno','GND'], '#000000'),
+      w('w8', ['rs','2'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -201,7 +201,7 @@ void loop() {
     id: 'pot-adc-reader',
     title: 'Potentiometer ADC Reader',
     description: 'Turn the potentiometer knob to vary the voltage on A0 from 0 to 5V.',
-    category: 'basics', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// Potentiometer reader
 void setup() { Serial.begin(9600); }
 void loop() {
@@ -215,9 +215,9 @@ void loop() {
       { type: 'wokwi-potentiometer', id: 'pot', x: 380, y: 160, properties: {} },
     ],
     wires: [
-      w('w1', ['uno','5V'], ['pot','VCC'], '#ff0000'),
-      w('w2', ['pot','GND'], ['uno','GND'], '#000000'),
-      w('w3', ['pot','SIG'], ['uno','A0'], '#ffaa00'),
+      w('w1', ['arduino-uno','5V'], ['pot','VCC'], '#ff0000'),
+      w('w2', ['pot','GND'], ['arduino-uno','GND'], '#000000'),
+      w('w3', ['pot','SIG'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -225,7 +225,7 @@ void loop() {
     id: 'photoresistor-light',
     title: 'Photoresistor Light Sensor',
     description: 'LDR + pull-down resistor. Brighter light = lower LDR resistance = higher voltage.',
-    category: 'sensors', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// Photoresistor light sensor
 void setup() { Serial.begin(9600); }
 void loop() {
@@ -240,10 +240,10 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rpull', x: 380, y: 220, properties: { value: '10000' } },
     ],
     wires: [
-      w('w1', ['uno','5V'], ['ldr','VCC'], '#ff0000'),
+      w('w1', ['arduino-uno','5V'], ['ldr','VCC'], '#ff0000'),
       w('w2', ['ldr','SIG'], ['rpull','1'], '#ffaa00'),
-      w('w3', ['rpull','2'], ['uno','GND'], '#000000'),
-      w('w4', ['ldr','SIG'], ['uno','A0'], '#ffaa00'),
+      w('w3', ['rpull','2'], ['arduino-uno','GND'], '#000000'),
+      w('w4', ['ldr','SIG'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -251,7 +251,7 @@ void loop() {
     id: 'multi-led-bar',
     title: 'LED Bar Graph',
     description: '5 LEDs driven from digital pins with individual resistors. Bargraph display.',
-    category: 'basics', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// LED Bar Graph — 5 LEDs on pins 2-6
 void setup() { for(int i=2;i<=6;i++) pinMode(i,OUTPUT); }
 void loop() {
@@ -264,9 +264,9 @@ void loop() {
       ...Array.from({length:5}, (_,i) => ({ type: 'wokwi-led', id: `led${i}`, x: 450, y: 60+i*50, properties: { color: ['red','yellow','green','blue','white'][i] } })),
     ],
     wires: [
-      ...Array.from({length:5}, (_,i) => w(`wa${i}`, ['uno',`${i+2}`], [`r${i}`,'1'])),
+      ...Array.from({length:5}, (_,i) => w(`wa${i}`, ['arduino-uno',`${i+2}`], [`r${i}`,'1'])),
       ...Array.from({length:5}, (_,i) => w(`wb${i}`, [`r${i}`,'2'], [`led${i}`,'A'])),
-      ...Array.from({length:5}, (_,i) => w(`wc${i}`, [`led${i}`,'C'], ['uno','GND'], '#000000')),
+      ...Array.from({length:5}, (_,i) => w(`wc${i}`, [`led${i}`,'C'], ['arduino-uno','GND'], '#000000')),
     ],
   },
 
@@ -274,7 +274,7 @@ void loop() {
     id: 'capacitor-charge-curve',
     title: 'Capacitor Charging Curve',
     description: 'Charge a capacitor through a resistor, read the exponential V(t) via ADC.',
-    category: 'basics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// RC Charging — observe exponential curve
 // tau = R*C = 10k * 100uF = 1 second
 void setup() {
@@ -292,9 +292,9 @@ void loop() {
       { type: 'wokwi-resistor', id: 'r1', x: 380, y: 100, properties: { value: '10000' } },
     ],
     wires: [
-      w('w1', ['uno','8'], ['r1','1'], '#00aaff'),
-      w('w2', ['r1','2'], ['uno','A0'], '#ffaa00'),
-      w('w3', ['r1','2'], ['uno','GND'], '#000000'),
+      w('w1', ['arduino-uno','8'], ['r1','1'], '#00aaff'),
+      w('w2', ['r1','2'], ['arduino-uno','A0'], '#ffaa00'),
+      w('w3', ['r1','2'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -306,7 +306,7 @@ void loop() {
     id: 'npn-led-switch',
     title: 'NPN Transistor LED Switch',
     description: '2N2222 NPN switches a high-current LED from a low-current MCU pin.',
-    category: 'basics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// NPN switch — pin 9 drives base through 1k, collector drives LED
 void setup() { pinMode(9, OUTPUT); }
 void loop() {
@@ -320,10 +320,10 @@ void loop() {
       { type: 'wokwi-led', id: 'led1', x: 480, y: 160, properties: { color: 'green' } },
     ],
     wires: [
-      w('w1', ['uno','9'], ['rb','1']),
-      w('w2', ['uno','5V'], ['rc','1'], '#ff0000'),
+      w('w1', ['arduino-uno','9'], ['rb','1']),
+      w('w2', ['arduino-uno','5V'], ['rc','1'], '#ff0000'),
       w('w3', ['rc','2'], ['led1','A']),
-      w('w4', ['led1','C'], ['uno','GND'], '#000000'),
+      w('w4', ['led1','C'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -331,7 +331,7 @@ void loop() {
     id: 'pnp-high-side-switch',
     title: 'PNP High-Side Switch',
     description: '2N3906 PNP switches a load to Vcc when base is pulled LOW.',
-    category: 'basics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// PNP high-side switch
 // Pin 9 LOW = load ON, Pin 9 HIGH = load OFF
 void setup() { pinMode(9, OUTPUT); }
@@ -346,9 +346,9 @@ void loop() {
       { type: 'wokwi-led', id: 'led1', x: 480, y: 280, properties: { color: 'red' } },
     ],
     wires: [
-      w('w1', ['uno','9'], ['rb','1']),
+      w('w1', ['arduino-uno','9'], ['rb','1']),
       w('w2', ['rl','2'], ['led1','A']),
-      w('w3', ['led1','C'], ['uno','GND'], '#000000'),
+      w('w3', ['led1','C'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -356,7 +356,7 @@ void loop() {
     id: 'mosfet-pwm-led',
     title: 'MOSFET PWM LED Dimmer',
     description: '2N7000 N-MOSFET driven by PWM. Vgs=3.3V fully enhances the FET.',
-    category: 'basics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// MOSFET PWM LED dimmer
 void setup() { pinMode(9, OUTPUT); }
 void loop() {
@@ -369,9 +369,9 @@ void loop() {
       { type: 'wokwi-led', id: 'led1', x: 420, y: 160, properties: { color: 'white' } },
     ],
     wires: [
-      w('w1', ['uno','5V'], ['rl','1'], '#ff0000'),
+      w('w1', ['arduino-uno','5V'], ['rl','1'], '#ff0000'),
       w('w2', ['rl','2'], ['led1','A']),
-      w('w3', ['led1','C'], ['uno','GND'], '#000000'),
+      w('w3', ['led1','C'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -379,7 +379,7 @@ void loop() {
     id: 'diode-rectifier',
     title: 'Half-Wave Rectifier',
     description: 'Diode passes only positive half-cycles. Read rectified output on ADC.',
-    category: 'basics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// Half-wave rectifier — observe on Serial plotter
 void setup() { Serial.begin(115200); }
 void loop() {
@@ -392,8 +392,8 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rl', x: 420, y: 200, properties: { value: '1000' } },
     ],
     wires: [
-      w('w1', ['rl','2'], ['uno','GND'], '#000000'),
-      w('w2', ['rl','1'], ['uno','A0'], '#ffaa00'),
+      w('w1', ['rl','2'], ['arduino-uno','GND'], '#000000'),
+      w('w2', ['rl','1'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -401,7 +401,7 @@ void loop() {
     id: 'zener-regulator',
     title: 'Zener Voltage Regulator',
     description: '5.1V Zener clamps output. Even if input varies, output stays at 5.1V.',
-    category: 'basics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// Zener 5.1V regulator
 // Input = 9V battery, Rs = 220 ohm, Zener clamps to 5.1V
 void setup() { Serial.begin(9600); }
@@ -415,8 +415,8 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rs', x: 380, y: 100, properties: { value: '220' } },
     ],
     wires: [
-      w('w1', ['rs','2'], ['uno','A0'], '#ffaa00'),
-      w('w2', ['rs','2'], ['uno','GND'], '#000000'),
+      w('w1', ['rs','2'], ['arduino-uno','A0'], '#ffaa00'),
+      w('w2', ['rs','2'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -424,7 +424,7 @@ void loop() {
     id: 'schottky-reverse-protection',
     title: 'Reverse Polarity Protection',
     description: 'Schottky diode protects circuit from accidental reverse battery connection.',
-    category: 'basics', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// Schottky reverse-polarity protection
 // 1N5817: low Vf = 0.3V, minimal power loss
 void setup() { Serial.begin(9600); }
@@ -440,7 +440,7 @@ void loop() {
     id: 'bjt-common-emitter',
     title: 'Common-Emitter Amplifier',
     description: 'NPN BJT amplifies a small AC signal. Gain = -Rc/Re.',
-    category: 'basics', difficulty: 'advanced',
+    category: 'circuits', difficulty: 'advanced',
     code: `// Common-emitter amplifier
 // Biased at Vcc/2, gain ~ -Rc/Re = -4.7
 void setup() { Serial.begin(115200); }
@@ -457,12 +457,12 @@ void loop() {
       { type: 'wokwi-resistor', id: 're', x: 450, y: 280, properties: { value: '1000' } },
     ],
     wires: [
-      w('w1', ['uno','5V'], ['rb1','1'], '#ff0000'),
-      w('w2', ['uno','5V'], ['rc','1'], '#ff0000'),
+      w('w1', ['arduino-uno','5V'], ['rb1','1'], '#ff0000'),
+      w('w2', ['arduino-uno','5V'], ['rc','1'], '#ff0000'),
       w('w3', ['rb1','2'], ['rb2','1']),
-      w('w4', ['rb2','2'], ['uno','GND'], '#000000'),
-      w('w5', ['re','2'], ['uno','GND'], '#000000'),
-      w('w6', ['rc','2'], ['uno','A0'], '#ffaa00'),
+      w('w4', ['rb2','2'], ['arduino-uno','GND'], '#000000'),
+      w('w5', ['re','2'], ['arduino-uno','GND'], '#000000'),
+      w('w6', ['rc','2'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -470,7 +470,7 @@ void loop() {
     id: 'darlington-high-current',
     title: 'Darlington Pair (High Current)',
     description: 'Two NPN BJTs cascaded for beta-squared current gain. Drives heavy loads from MCU.',
-    category: 'basics', difficulty: 'advanced',
+    category: 'circuits', difficulty: 'advanced',
     code: `// Darlington pair — drives a high-current load
 void setup() { pinMode(9, OUTPUT); }
 void loop() {
@@ -483,9 +483,9 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rl', x: 480, y: 100, properties: { value: '100' } },
     ],
     wires: [
-      w('w1', ['uno','9'], ['rb','1']),
-      w('w2', ['uno','5V'], ['rl','1'], '#ff0000'),
-      w('w3', ['rl','2'], ['uno','GND'], '#000000'),
+      w('w1', ['arduino-uno','9'], ['rb','1']),
+      w('w2', ['arduino-uno','5V'], ['rl','1'], '#ff0000'),
+      w('w3', ['rl','2'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -497,7 +497,7 @@ void loop() {
     id: 'opamp-inverting',
     title: 'Inverting Amplifier (LM358)',
     description: 'Vout = -(Rf/Rin) * Vin. Gain=-10 with Rin=1k, Rf=10k.',
-    category: 'basics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// Inverting amplifier — gain = -Rf/Rin = -10
 void setup() { Serial.begin(9600); }
 void loop() {
@@ -514,8 +514,8 @@ void loop() {
     ],
     wires: [
       w('w1', ['rin','2'], ['rf','1']),
-      w('w2', ['rf','2'], ['uno','A1'], '#ffaa00'),
-      w('w3', ['rin','1'], ['uno','A0'], '#ffaa00'),
+      w('w2', ['rf','2'], ['arduino-uno','A1'], '#ffaa00'),
+      w('w3', ['rin','1'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -523,7 +523,7 @@ void loop() {
     id: 'opamp-voltage-follower',
     title: 'Voltage Follower (Buffer)',
     description: 'Op-amp with 100% feedback. Vout = Vin. High Z input, low Z output.',
-    category: 'basics', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// Voltage follower — Vout tracks Vin exactly
 void setup() { Serial.begin(9600); }
 void loop() {
@@ -538,10 +538,10 @@ void loop() {
       { type: 'wokwi-potentiometer', id: 'pot', x: 350, y: 160, properties: {} },
     ],
     wires: [
-      w('w1', ['uno','5V'], ['pot','VCC'], '#ff0000'),
-      w('w2', ['pot','GND'], ['uno','GND'], '#000000'),
-      w('w3', ['pot','SIG'], ['uno','A0'], '#ffaa00'),
-      w('w4', ['pot','SIG'], ['uno','A1'], '#ffaa00'),
+      w('w1', ['arduino-uno','5V'], ['pot','VCC'], '#ff0000'),
+      w('w2', ['pot','GND'], ['arduino-uno','GND'], '#000000'),
+      w('w3', ['pot','SIG'], ['arduino-uno','A0'], '#ffaa00'),
+      w('w4', ['pot','SIG'], ['arduino-uno','A1'], '#ffaa00'),
     ],
   },
 
@@ -549,7 +549,7 @@ void loop() {
     id: 'opamp-comparator',
     title: 'Comparator with LED',
     description: 'Op-amp compares pot voltage vs 2.5V reference. LED indicates which is higher.',
-    category: 'basics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// Comparator — LED lights when pot > 2.5V
 void setup() { Serial.begin(9600); }
 void loop() {
@@ -565,11 +565,11 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rl', x: 480, y: 120, properties: { value: '220' } },
     ],
     wires: [
-      w('w1', ['uno','5V'], ['pot','VCC'], '#ff0000'),
-      w('w2', ['pot','GND'], ['uno','GND'], '#000000'),
-      w('w3', ['pot','SIG'], ['uno','A0'], '#ffaa00'),
+      w('w1', ['arduino-uno','5V'], ['pot','VCC'], '#ff0000'),
+      w('w2', ['pot','GND'], ['arduino-uno','GND'], '#000000'),
+      w('w3', ['pot','SIG'], ['arduino-uno','A0'], '#ffaa00'),
       w('w4', ['rl','2'], ['led1','A']),
-      w('w5', ['led1','C'], ['uno','GND'], '#000000'),
+      w('w5', ['led1','C'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -577,7 +577,7 @@ void loop() {
     id: 'opamp-difference',
     title: 'Difference Amplifier',
     description: 'Vout = Gain * (V2 - V1). Useful for bridge sensors and differential signals.',
-    category: 'sensors', difficulty: 'advanced',
+    category: 'circuits', difficulty: 'advanced',
     code: `// Difference amplifier — Gain=10, Vout = 10*(V2-V1)
 void setup() { Serial.begin(9600); }
 void loop() {
@@ -597,10 +597,10 @@ void loop() {
       { type: 'wokwi-resistor', id: 'r4', x: 350, y: 320, properties: { value: '100000' } },
     ],
     wires: [
-      w('w1', ['r1','1'], ['uno','A0'], '#ffaa00'),
-      w('w2', ['r3','1'], ['uno','A1'], '#ffaa00'),
+      w('w1', ['r1','1'], ['arduino-uno','A0'], '#ffaa00'),
+      w('w2', ['r3','1'], ['arduino-uno','A1'], '#ffaa00'),
       w('w3', ['r1','2'], ['r2','1']),
-      w('w4', ['r2','2'], ['uno','A2'], '#ffaa00'),
+      w('w4', ['r2','2'], ['arduino-uno','A2'], '#ffaa00'),
     ],
   },
 
@@ -608,7 +608,7 @@ void loop() {
     id: 'opamp-schmitt-trigger',
     title: 'Schmitt Trigger',
     description: 'Op-amp with positive feedback creates hysteresis. Cleans up noisy signals.',
-    category: 'basics', difficulty: 'advanced',
+    category: 'circuits', difficulty: 'advanced',
     code: `// Schmitt trigger — cleans noisy input
 void setup() { Serial.begin(9600); }
 void loop() {
@@ -624,12 +624,12 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rfb', x: 450, y: 200, properties: { value: '100000' } },
     ],
     wires: [
-      w('w1', ['uno','5V'], ['pot','VCC'], '#ff0000'),
-      w('w2', ['pot','GND'], ['uno','GND'], '#000000'),
+      w('w1', ['arduino-uno','5V'], ['pot','VCC'], '#ff0000'),
+      w('w2', ['pot','GND'], ['arduino-uno','GND'], '#000000'),
       w('w3', ['pot','SIG'], ['rin','1']),
       w('w4', ['rin','2'], ['rfb','1']),
-      w('w5', ['rfb','2'], ['uno','A1'], '#ffaa00'),
-      w('w6', ['pot','SIG'], ['uno','A0'], '#ffaa00'),
+      w('w5', ['rfb','2'], ['arduino-uno','A1'], '#ffaa00'),
+      w('w6', ['pot','SIG'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -641,7 +641,7 @@ void loop() {
     id: 'and-gate-alarm',
     title: 'AND Gate Alarm',
     description: 'Buzzer sounds only when BOTH buttons are pressed (AND logic).',
-    category: 'basics', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// AND gate alarm — both buttons must be pressed
 void setup() { pinMode(2, INPUT_PULLUP); pinMode(3, INPUT_PULLUP); pinMode(8, OUTPUT); }
 void loop() {
@@ -657,13 +657,13 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rl', x: 480, y: 60, properties: { value: '220' } },
     ],
     wires: [
-      w('w1', ['uno','2'], ['btn1','1.l']),
-      w('w2', ['btn1','2.l'], ['uno','GND'], '#000000'),
-      w('w3', ['uno','3'], ['btn2','1.l']),
-      w('w4', ['btn2','2.l'], ['uno','GND'], '#000000'),
-      w('w5', ['uno','8'], ['rl','1']),
+      w('w1', ['arduino-uno','2'], ['btn1','1.l']),
+      w('w2', ['btn1','2.l'], ['arduino-uno','GND'], '#000000'),
+      w('w3', ['arduino-uno','3'], ['btn2','1.l']),
+      w('w4', ['btn2','2.l'], ['arduino-uno','GND'], '#000000'),
+      w('w5', ['arduino-uno','8'], ['rl','1']),
       w('w6', ['rl','2'], ['led1','A']),
-      w('w7', ['led1','C'], ['uno','GND'], '#000000'),
+      w('w7', ['led1','C'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -671,7 +671,7 @@ void loop() {
     id: 'xor-toggle-detector',
     title: 'XOR Toggle Detector',
     description: 'XOR gate detects when two switches are in different positions.',
-    category: 'basics', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// XOR — LED on when switches differ
 void setup() { pinMode(2,INPUT_PULLUP); pinMode(3,INPUT_PULLUP); pinMode(13,OUTPUT); }
 void loop() {
@@ -684,10 +684,10 @@ void loop() {
       { type: 'wokwi-pushbutton', id: 'sw2', x: 350, y: 180, properties: {} },
     ],
     wires: [
-      w('w1', ['uno','2'], ['sw1','1.l']),
-      w('w2', ['sw1','2.l'], ['uno','GND'], '#000000'),
-      w('w3', ['uno','3'], ['sw2','1.l']),
-      w('w4', ['sw2','2.l'], ['uno','GND'], '#000000'),
+      w('w1', ['arduino-uno','2'], ['sw1','1.l']),
+      w('w2', ['sw1','2.l'], ['arduino-uno','GND'], '#000000'),
+      w('w3', ['arduino-uno','3'], ['sw2','1.l']),
+      w('w4', ['sw2','2.l'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -695,7 +695,7 @@ void loop() {
     id: 'nand-sr-latch',
     title: 'NAND SR Latch',
     description: 'Two cross-coupled NAND gates form a Set-Reset latch. Memory without a clock!',
-    category: 'basics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// Software NAND SR latch simulation
 bool q = false;
 void setup() { Serial.begin(9600); pinMode(2,INPUT_PULLUP); pinMode(3,INPUT_PULLUP); pinMode(13,OUTPUT); }
@@ -716,13 +716,13 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rl', x: 480, y: 60, properties: { value: '220' } },
     ],
     wires: [
-      w('w1', ['uno','2'], ['setBtn','1.l']),
-      w('w2', ['setBtn','2.l'], ['uno','GND'], '#000000'),
-      w('w3', ['uno','3'], ['rstBtn','1.l']),
-      w('w4', ['rstBtn','2.l'], ['uno','GND'], '#000000'),
-      w('w5', ['uno','13'], ['rl','1']),
+      w('w1', ['arduino-uno','2'], ['setBtn','1.l']),
+      w('w2', ['setBtn','2.l'], ['arduino-uno','GND'], '#000000'),
+      w('w3', ['arduino-uno','3'], ['rstBtn','1.l']),
+      w('w4', ['rstBtn','2.l'], ['arduino-uno','GND'], '#000000'),
+      w('w5', ['arduino-uno','13'], ['rl','1']),
       w('w6', ['rl','2'], ['qled','A']),
-      w('w7', ['qled','C'], ['uno','GND'], '#000000'),
+      w('w7', ['qled','C'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -730,7 +730,7 @@ void loop() {
     id: 'full-adder',
     title: 'Full Adder (1-bit)',
     description: 'Sum = A XOR B XOR Cin, Cout = (A AND B) OR (Cin AND (A XOR B)).',
-    category: 'basics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// 1-bit full adder in software
 void setup() { Serial.begin(9600); pinMode(2,INPUT_PULLUP); pinMode(3,INPUT_PULLUP); pinMode(4,INPUT_PULLUP); }
 void loop() {
@@ -751,12 +751,12 @@ void loop() {
       { type: 'wokwi-led', id: 'coutLed', x: 480, y: 200, properties: { color: 'red' } },
     ],
     wires: [
-      w('w1', ['uno','2'], ['bA','1.l']),
-      w('w2', ['bA','2.l'], ['uno','GND'], '#000000'),
-      w('w3', ['uno','3'], ['bB','1.l']),
-      w('w4', ['bB','2.l'], ['uno','GND'], '#000000'),
-      w('w5', ['uno','4'], ['bCin','1.l']),
-      w('w6', ['bCin','2.l'], ['uno','GND'], '#000000'),
+      w('w1', ['arduino-uno','2'], ['bA','1.l']),
+      w('w2', ['bA','2.l'], ['arduino-uno','GND'], '#000000'),
+      w('w3', ['arduino-uno','3'], ['bB','1.l']),
+      w('w4', ['bB','2.l'], ['arduino-uno','GND'], '#000000'),
+      w('w5', ['arduino-uno','4'], ['bCin','1.l']),
+      w('w6', ['bCin','2.l'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -764,7 +764,7 @@ void loop() {
     id: 'binary-counter-leds',
     title: '4-bit Binary Counter',
     description: 'Count from 0 to 15 displayed on 4 LEDs. Each LED = one bit.',
-    category: 'basics', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// 4-bit binary counter on LEDs
 int count = 0;
 void setup() { for(int i=2;i<=5;i++) pinMode(i,OUTPUT); }
@@ -779,9 +779,9 @@ void loop() {
       ...Array.from({length:4}, (_,i) => ({ type: 'wokwi-led', id: `led${i}`, x: 460, y: 60+i*60, properties: { color: ['red','yellow','green','blue'][i] } })),
     ],
     wires: [
-      ...Array.from({length:4}, (_,i) => w(`wa${i}`, ['uno',`${i+2}`], [`r${i}`,'1'])),
+      ...Array.from({length:4}, (_,i) => w(`wa${i}`, ['arduino-uno',`${i+2}`], [`r${i}`,'1'])),
       ...Array.from({length:4}, (_,i) => w(`wb${i}`, [`r${i}`,'2'], [`led${i}`,'A'])),
-      ...Array.from({length:4}, (_,i) => w(`wc${i}`, [`led${i}`,'C'], ['uno','GND'], '#000000')),
+      ...Array.from({length:4}, (_,i) => w(`wc${i}`, [`led${i}`,'C'], ['arduino-uno','GND'], '#000000')),
     ],
   },
 
@@ -789,7 +789,7 @@ void loop() {
     id: 'logic-probe',
     title: 'Logic Probe (HIGH/LOW/FLOATING)',
     description: 'Read any digital pin state and show on 3 LEDs: green=HIGH, red=LOW, yellow=floating.',
-    category: 'basics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// Logic probe — tests pin 7
 void setup() {
   pinMode(10,OUTPUT); pinMode(11,OUTPUT); pinMode(12,OUTPUT); // R,Y,G
@@ -811,12 +811,12 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rr', x: 400, y: 90, properties: { value: '220' } },
     ],
     wires: [
-      w('w1', ['uno','12'], ['rg','1']),
+      w('w1', ['arduino-uno','12'], ['rg','1']),
       w('w2', ['rg','2'], ['gLed','A']),
-      w('w3', ['gLed','C'], ['uno','GND'], '#000000'),
-      w('w4', ['uno','10'], ['rr','1']),
+      w('w3', ['gLed','C'], ['arduino-uno','GND'], '#000000'),
+      w('w4', ['arduino-uno','10'], ['rr','1']),
       w('w5', ['rr','2'], ['rLed','A']),
-      w('w6', ['rLed','C'], ['uno','GND'], '#000000'),
+      w('w6', ['rLed','C'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -828,7 +828,7 @@ void loop() {
     id: 'relay-led-switch',
     title: 'Relay-Controlled LED',
     description: 'NPN transistor drives a relay. Relay switches an LED connected to a separate supply.',
-    category: 'robotics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// Relay control via NPN transistor
 void setup() { pinMode(9, OUTPUT); }
 void loop() {
@@ -842,9 +842,9 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rl', x: 500, y: 120, properties: { value: '220' } },
     ],
     wires: [
-      w('w1', ['uno','9'], ['rb','1']),
+      w('w1', ['arduino-uno','9'], ['rb','1']),
       w('w2', ['rl','2'], ['led1','A']),
-      w('w3', ['led1','C'], ['uno','GND'], '#000000'),
+      w('w3', ['led1','C'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -852,7 +852,7 @@ void loop() {
     id: 'optocoupler-signal',
     title: 'Optocoupler Signal Isolation',
     description: '4N25 optocoupler isolates MCU from a higher-voltage circuit.',
-    category: 'communication', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// Optocoupler 4N25 — MCU drives LED side, reads phototransistor side
 void setup() { pinMode(9,OUTPUT); Serial.begin(9600); }
 void loop() {
@@ -869,9 +869,9 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rpull', x: 500, y: 80, properties: { value: '10000' } },
     ],
     wires: [
-      w('w1', ['uno','9'], ['rled','1']),
-      w('w2', ['uno','5V'], ['rpull','1'], '#ff0000'),
-      w('w3', ['rpull','2'], ['uno','A0'], '#ffaa00'),
+      w('w1', ['arduino-uno','9'], ['rled','1']),
+      w('w2', ['arduino-uno','5V'], ['rpull','1'], '#ff0000'),
+      w('w3', ['rpull','2'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -879,7 +879,7 @@ void loop() {
     id: 'l293d-motor-control',
     title: 'DC Motor Control (L293D)',
     description: 'L293D H-bridge drives a DC motor forward, reverse, and brake.',
-    category: 'robotics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// L293D motor control — forward, reverse, brake
 #define EN 9
 #define IN1 7
@@ -899,7 +899,7 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rm', x: 450, y: 200, properties: { value: '10' } },
     ],
     wires: [
-      w('w1', ['rm','2'], ['uno','GND'], '#000000'),
+      w('w1', ['rm','2'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -907,7 +907,7 @@ void loop() {
     id: 'l293d-speed-pwm',
     title: 'Motor Speed Control (PWM)',
     description: 'Potentiometer controls motor speed via PWM on L293D enable pin.',
-    category: 'robotics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// Motor speed via potentiometer + L293D
 #define EN 9
 #define IN1 7
@@ -926,9 +926,9 @@ void loop() {
       { type: 'wokwi-potentiometer', id: 'pot', x: 350, y: 200, properties: {} },
     ],
     wires: [
-      w('w1', ['uno','5V'], ['pot','VCC'], '#ff0000'),
-      w('w2', ['pot','GND'], ['uno','GND'], '#000000'),
-      w('w3', ['pot','SIG'], ['uno','A0'], '#ffaa00'),
+      w('w1', ['arduino-uno','5V'], ['pot','VCC'], '#ff0000'),
+      w('w2', ['pot','GND'], ['arduino-uno','GND'], '#000000'),
+      w('w3', ['pot','SIG'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -940,7 +940,7 @@ void loop() {
     id: 'power-supply-7805',
     title: '7805 Regulated Power Supply',
     description: '9V battery → 7805 → stable 5V for the Arduino. Classic linear regulator.',
-    category: 'basics', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// 7805 power supply — regulated 5V from 9V battery
 // The 7805 provides stable 5V regardless of battery voltage (7-12V range)
 void setup() { Serial.begin(9600); }
@@ -954,8 +954,8 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rload', x: 420, y: 160, properties: { value: '1000' } },
     ],
     wires: [
-      w('w1', ['rload','1'], ['uno','A0'], '#ffaa00'),
-      w('w2', ['rload','2'], ['uno','GND'], '#000000'),
+      w('w1', ['rload','1'], ['arduino-uno','A0'], '#ffaa00'),
+      w('w2', ['rload','2'], ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -963,7 +963,7 @@ void loop() {
     id: 'lm317-adjustable-psu',
     title: 'LM317 Adjustable PSU',
     description: 'LM317 with R1/R2 divider. Vout = 1.25 * (1 + R2/R1). Set any voltage 1.25-37V.',
-    category: 'basics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     code: `// LM317 adjustable regulator
 // R1 = 240, R2 = 720 -> Vout = 1.25 * (1 + 720/240) = 5.0V
 void setup() { Serial.begin(9600); }
@@ -979,8 +979,8 @@ void loop() {
     ],
     wires: [
       w('w1', ['r1','2'], ['r2','1']),
-      w('w2', ['r2','2'], ['uno','GND'], '#000000'),
-      w('w3', ['r1','1'], ['uno','A0'], '#ffaa00'),
+      w('w2', ['r2','2'], ['arduino-uno','GND'], '#000000'),
+      w('w3', ['r1','1'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -988,7 +988,7 @@ void loop() {
     id: 'battery-voltage-monitor',
     title: 'Battery Voltage Monitor',
     description: 'Voltage divider scales 9V battery down to 0-5V range for ADC measurement.',
-    category: 'sensors', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     code: `// Battery voltage monitor
 // R1=20k + R2=10k divider: V_adc = V_bat * 10k / 30k
 // V_bat = V_adc * 3
@@ -1007,8 +1007,8 @@ void loop() {
     ],
     wires: [
       w('w1', ['r1','2'], ['r2','1']),
-      w('w2', ['r2','2'], ['uno','GND'], '#000000'),
-      w('w3', ['r1','2'], ['uno','A0'], '#ffaa00'),
+      w('w2', ['r2','2'], ['arduino-uno','GND'], '#000000'),
+      w('w3', ['r1','2'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -1020,7 +1020,7 @@ void loop() {
     id: 'esp32-dual-adc',
     title: 'ESP32 Dual ADC Reader',
     description: 'ESP32 reads two analog channels (GPIO34, GPIO35) simultaneously at 12-bit resolution.',
-    category: 'sensors', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     boardType: 'esp32',
     code: `// ESP32 dual ADC — 12-bit, 3.3V reference
 void setup() {
@@ -1054,7 +1054,7 @@ void loop() {
     id: 'mega-multi-led',
     title: 'Arduino Mega 16-LED Bar',
     description: 'Arduino Mega drives 16 LEDs from pins 22-37. Knight Rider scanner effect.',
-    category: 'basics', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     boardType: 'arduino-mega',
     code: `// Arduino Mega — 16-LED Knight Rider
 void setup() { for(int i=22;i<=37;i++) pinMode(i,OUTPUT); }
@@ -1067,8 +1067,8 @@ void loop() {
       ...Array.from({length:8}, (_,i) => ({ type: 'wokwi-led', id: `led${i}`, x: 400+i*30, y: 300, properties: { color: 'red' } })),
     ],
     wires: [
-      ...Array.from({length:8}, (_,i) => w(`wl${i}`, ['mega',`${22+i}`], [`led${i}`,'A'])),
-      ...Array.from({length:8}, (_,i) => w(`wg${i}`, [`led${i}`,'C'], ['mega','GND'], '#000000')),
+      ...Array.from({length:8}, (_,i) => w(`wl${i}`, ['arduino-mega',`${22+i}`], [`led${i}`,'A'])),
+      ...Array.from({length:8}, (_,i) => w(`wg${i}`, [`led${i}`,'C'], ['arduino-mega','GND'], '#000000')),
     ],
   },
 
@@ -1076,7 +1076,7 @@ void loop() {
     id: 'nano-sensor-station',
     title: 'Arduino Nano Sensor Station',
     description: 'Compact weather station: NTC + photoresistor on Nano. Reads temp and light.',
-    category: 'sensors', difficulty: 'beginner',
+    category: 'circuits', difficulty: 'beginner',
     boardType: 'arduino-nano',
     code: `// Nano sensor station — NTC + LDR
 #define NTC_PIN A0
@@ -1092,21 +1092,21 @@ void loop() {
   delay(1000);
 }`,
     components: [
-      { type: 'wokwi-arduino-nano', id: 'nano', x: 100, y: 100, properties: {} },
+      { type: 'wokwi-arduino-nano', id: 'arduino-nano', x: 100, y: 100, properties: {} },
       { type: 'wokwi-ntc-temperature-sensor', id: 'ntc', x: 350, y: 80, properties: { temperature: '22' } },
       { type: 'wokwi-resistor', id: 'rntc', x: 350, y: 160, properties: { value: '10000' } },
       { type: 'wokwi-photoresistor-sensor', id: 'ldr', x: 350, y: 240, properties: { lux: '300' } },
       { type: 'wokwi-resistor', id: 'rldr', x: 350, y: 320, properties: { value: '10000' } },
     ],
     wires: [
-      w('w1', ['nano','5V'], ['ntc','1'], '#ff0000'),
+      w('w1', ['arduino-nano','5V'], ['ntc','1'], '#ff0000'),
       w('w2', ['ntc','2'], ['rntc','1']),
-      w('w3', ['rntc','2'], ['nano','GND'], '#000000'),
-      w('w4', ['ntc','2'], ['nano','A0'], '#ffaa00'),
-      w('w5', ['nano','5V'], ['ldr','VCC'], '#ff0000'),
+      w('w3', ['rntc','2'], ['arduino-nano','GND'], '#000000'),
+      w('w4', ['ntc','2'], ['arduino-nano','A0'], '#ffaa00'),
+      w('w5', ['arduino-nano','5V'], ['ldr','VCC'], '#ff0000'),
       w('w6', ['ldr','SIG'], ['rldr','1']),
-      w('w7', ['rldr','2'], ['nano','GND'], '#000000'),
-      w('w8', ['ldr','SIG'], ['nano','A1'], '#ffaa00'),
+      w('w7', ['rldr','2'], ['arduino-nano','GND'], '#000000'),
+      w('w8', ['ldr','SIG'], ['arduino-nano','A1'], '#ffaa00'),
     ],
   },
 
@@ -1114,7 +1114,7 @@ void loop() {
     id: 'esp32-pwm-led-rgb',
     title: 'ESP32 LEDC PWM RGB',
     description: 'ESP32 LEDC peripheral drives RGB LED with independent PWM channels.',
-    category: 'basics', difficulty: 'intermediate',
+    category: 'circuits', difficulty: 'intermediate',
     boardType: 'esp32',
     code: `// ESP32 LEDC PWM — RGB LED color cycling
 #define R_PIN 16

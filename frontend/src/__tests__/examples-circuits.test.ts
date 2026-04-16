@@ -23,11 +23,9 @@ describe('circuitExamples integration', () => {
     expect(dupes).toEqual([]);
   });
 
-  it('circuit examples cover all expected categories', () => {
-    const cats = new Set(circuitExamples.map((e) => e.category));
-    expect(cats.has('basics')).toBe(true);
-    expect(cats.has('sensors')).toBe(true);
-    expect(cats.has('robotics')).toBe(true);
+  it('all circuit examples use the circuits category', () => {
+    const nonCircuits = circuitExamples.filter((e) => e.category !== 'circuits');
+    expect(nonCircuits.map((e) => e.id)).toEqual([]);
   });
 
   it('every example has valid required fields', () => {
@@ -35,7 +33,7 @@ describe('circuitExamples integration', () => {
       expect(e.id, `missing id: ${JSON.stringify(e)}`).toBeTypeOf('string');
       expect(e.title).toBeTypeOf('string');
       expect(e.description).toBeTypeOf('string');
-      expect(e.category).toMatch(/^(basics|sensors|displays|communication|games|robotics)$/);
+      expect(e.category).toMatch(/^(basics|sensors|displays|communication|games|robotics|circuits)$/);
       expect(e.difficulty).toMatch(/^(beginner|intermediate|advanced)$/);
       expect(e.code).toBeTypeOf('string');
       expect(Array.isArray(e.components)).toBe(true);

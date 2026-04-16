@@ -123,6 +123,11 @@ export const ExamplesGallery: React.FC<ExamplesGalleryProps> = ({ onLoadExample 
           <path d="M15 13v2" /><path d="M9 13v2" />
         </svg>
       ),
+      circuits: (
+        <svg {...svgProps}>
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        </svg>
+      ),
     };
     return icons[category];
   };
@@ -167,7 +172,7 @@ export const ExamplesGallery: React.FC<ExamplesGalleryProps> = ({ onLoadExample 
         <div className="filter-group">
           <label>Category:</label>
           <div className="filter-buttons">
-            {(['all', 'basics', 'sensors', 'displays', 'communication', 'games', 'robotics'] as const).map((cat) => (
+            {(['all', 'basics', 'sensors', 'displays', 'communication', 'games', 'robotics', 'circuits'] as const).map((cat) => (
               <button
                 key={cat}
                 className={`filter-button ${selectedCategory === cat ? 'active' : ''}`}

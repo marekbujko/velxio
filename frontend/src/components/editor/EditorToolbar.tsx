@@ -150,7 +150,10 @@ export const EditorToolbar = ({ consoleOpen, setConsoleOpen, compileLogs: _compi
     addLog({ timestamp: new Date(), type: 'info', message: `Starting compilation for ${boardLabel} (${fqbn})...` });
 
     try {
-      const sketchFiles = files.map((f) => ({ name: f.name, content: f.content }));
+      const groupFiles = activeBoard?.activeFileGroupId
+        ? useEditorStore.getState().getGroupFiles(activeBoard.activeFileGroupId)
+        : files;
+      const sketchFiles = (groupFiles.length > 0 ? groupFiles : files).map((f) => ({ name: f.name, content: f.content }));
       const result = await compileCode(sketchFiles, fqbn);
 
       const resultLogs = parseCompileResult(result, boardLabel);
@@ -524,14 +527,9 @@ export const EditorToolbar = ({ consoleOpen, setConsoleOpen, compileLogs: _compi
           {/* Run */}
           <button
             onClick={handleRun}
-            disabled={running || compiling || (
-              !['raspberry-pi-3','esp32','esp32-s3'].includes(activeBoard?.boardKind ?? '')
-              && activeBoard?.languageMode !== 'micropython'
-              && !compiledHex
-              && !activeBoard?.compiledProgram
-            )}
+            disabled={running || compiling}
             className="tb-btn tb-btn-run"
-            title={activeBoard?.languageMode === 'micropython' ? 'Run MicroPython' : 'Run'}
+            title={activeBoard?.languageMode === 'micropython' ? 'Run MicroPython' : 'Run (auto-compiles if needed)'}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none">
               <polygon points="5,3 19,12 5,21" />
@@ -553,7 +551,7 @@ export const EditorToolbar = ({ consoleOpen, setConsoleOpen, compileLogs: _compi
           {/* Reset */}
           <button
             onClick={handleReset}
-            disabled={!compiledHex}
+            disabled={!compiledHex && !activeBoard?.compiledProgram}
             className="tb-btn tb-btn-reset"
             title="Reset"
           >

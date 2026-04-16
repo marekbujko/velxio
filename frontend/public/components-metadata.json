@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-04-16T03:35:24.515Z",
+  "generatedAt": "2026-04-16T04:07:07.823Z",
   "components": [
     {
       "thumbnail": "<svg width=\"64\" height=\"64\" xmlns=\"http://www.w3.org/2000/svg\">\n      <rect width=\"64\" height=\"64\" fill=\"#e0e0e0\" rx=\"4\"/>\n      <text x=\"50%\" y=\"50%\" text-anchor=\"middle\" dy=\".3em\" font-size=\"10\" fill=\"#666\">\n        DIODE-1N4007\n      </text>\n    </svg>",
@@ -813,6 +813,162 @@
       "pinCount": 0,
       "tags": [
         "ili9341"
+      ]
+    },
+    {
+      "id": "lcd1602",
+      "tagName": "wokwi-lcd1602",
+      "name": "LCD1602",
+      "category": "displays",
+      "thumbnail": "<svg width=\"64\" height=\"64\" xmlns=\"http://www.w3.org/2000/svg\">\n      <rect width=\"64\" height=\"64\" fill=\"#e0e0e0\" rx=\"4\"/>\n      <text x=\"50%\" y=\"50%\" text-anchor=\"middle\" dy=\".3em\" font-size=\"10\" fill=\"#666\">\n        LCD1602\n      </text>\n    </svg>",
+      "properties": [
+        {
+          "name": "color",
+          "type": "string",
+          "defaultValue": "black",
+          "control": "text"
+        },
+        {
+          "name": "background",
+          "type": "string",
+          "defaultValue": "green",
+          "control": "text"
+        },
+        {
+          "name": "characters",
+          "type": "number",
+          "defaultValue": {
+            "0": 0,
+            "1": 0,
+            "2": 0,
+            "3": 0,
+            "4": 0,
+            "5": 0,
+            "6": 0,
+            "7": 0,
+            "8": 0,
+            "9": 0,
+            "10": 0,
+            "11": 0,
+            "12": 0,
+            "13": 0,
+            "14": 0,
+            "15": 0,
+            "16": 0,
+            "17": 0,
+            "18": 0,
+            "19": 0,
+            "20": 0,
+            "21": 0,
+            "22": 0,
+            "23": 0,
+            "24": 0,
+            "25": 0,
+            "26": 0,
+            "27": 0,
+            "28": 0,
+            "29": 0,
+            "30": 0,
+            "31": 0
+          },
+          "control": "range"
+        },
+        {
+          "name": "font",
+          "type": "string",
+          "control": "text"
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "defaultValue": false,
+          "control": "text"
+        },
+        {
+          "name": "blink",
+          "type": "string",
+          "defaultValue": false,
+          "control": "text"
+        },
+        {
+          "name": "cursorX",
+          "type": "string",
+          "defaultValue": 0,
+          "control": "text"
+        },
+        {
+          "name": "cursorY",
+          "type": "string",
+          "defaultValue": 0,
+          "control": "text"
+        },
+        {
+          "name": "backlight",
+          "type": "string",
+          "defaultValue": true,
+          "control": "text"
+        },
+        {
+          "name": "pins",
+          "type": "string",
+          "defaultValue": "full",
+          "control": "text"
+        },
+        {
+          "name": "screenOnly",
+          "type": "string",
+          "defaultValue": false,
+          "control": "text"
+        }
+      ],
+      "defaultValues": {
+        "color": "black",
+        "background": "green",
+        "characters": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0,
+          "10": 0,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 0,
+          "17": 0,
+          "18": 0,
+          "19": 0,
+          "20": 0,
+          "21": 0,
+          "22": 0,
+          "23": 0,
+          "24": 0,
+          "25": 0,
+          "26": 0,
+          "27": 0,
+          "28": 0,
+          "29": 0,
+          "30": 0,
+          "31": 0
+        },
+        "cursor": false,
+        "blink": false,
+        "cursorX": 0,
+        "cursorY": 0,
+        "backlight": true,
+        "pins": "full",
+        "screenOnly": false
+      },
+      "pinCount": 21,
+      "tags": [
+        "lcd1602"
       ]
     },
     {
@@ -1746,6 +1902,57 @@
       "pinCount": 0,
       "tags": [
         "servo"
+      ]
+    },
+    {
+      "id": "stepper-motor",
+      "tagName": "wokwi-stepper-motor",
+      "name": "Stepper Motor",
+      "category": "motors",
+      "thumbnail": "<svg width=\"64\" height=\"64\" xmlns=\"http://www.w3.org/2000/svg\">\n      <rect width=\"64\" height=\"64\" fill=\"#e0e0e0\" rx=\"4\"/>\n      <text x=\"50%\" y=\"50%\" text-anchor=\"middle\" dy=\".3em\" font-size=\"10\" fill=\"#666\">\n        STEPPER-MOTOR\n      </text>\n    </svg>",
+      "properties": [
+        {
+          "name": "angle",
+          "type": "string",
+          "defaultValue": 0,
+          "control": "text"
+        },
+        {
+          "name": "arrow",
+          "type": "string",
+          "defaultValue": "",
+          "control": "text"
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "defaultValue": "",
+          "control": "text"
+        },
+        {
+          "name": "units",
+          "type": "string",
+          "defaultValue": "",
+          "control": "text"
+        },
+        {
+          "name": "size",
+          "type": "string",
+          "control": "text"
+        }
+      ],
+      "defaultValues": {
+        "angle": 0,
+        "arrow": "",
+        "value": "",
+        "units": ""
+      },
+      "pinCount": 4,
+      "tags": [
+        "stepper-motor",
+        "stepper motor",
+        "stepper",
+        "motor"
       ]
     },
     {

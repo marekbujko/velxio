@@ -22,7 +22,7 @@ export interface ExampleProject {
   id: string;
   title: string;
   description: string;
-  category: 'basics' | 'sensors' | 'displays' | 'communication' | 'games' | 'robotics';
+  category: 'basics' | 'sensors' | 'displays' | 'communication' | 'games' | 'robotics' | 'circuits';
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   /** Target board — defaults to 'arduino-uno' if omitted. Ignored when boards[] is set. */
   boardType?: 'arduino-uno' | 'arduino-nano' | 'arduino-mega' | 'raspberry-pi-pico' | 'esp32' | 'esp32-c3';
