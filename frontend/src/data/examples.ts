@@ -4,6 +4,8 @@
  * Collection of example projects that users can load and run
  */
 
+import { circuitExamples } from './examples-circuits';
+
 /** Per-board setup for multi-board examples */
 export interface ExampleBoard {
   /** Must match a BoardKind — determines the board instance ID (first board of a kind → boardKind string) */
@@ -52,7 +54,7 @@ export interface ExampleProject {
   libraries?: string[];
 }
 
-export const exampleProjects: ExampleProject[] = [
+const legacyExamples: ExampleProject[] = [
   {
     id: 'blink-led',
     title: 'Blink LED',
@@ -4799,9 +4801,10 @@ void loop() {
   },
 ];
 
-// Append circuit-focused examples (analog, digital gates, electromechanical)
-import { circuitExamples } from './examples-circuits';
-exampleProjects.push(...circuitExamples);
+// Merge legacy examples with circuit-focused examples (analog, digital gates,
+// electromechanical). Declared after both arrays exist so the export is a
+// single immutable value — safe from tree-shaking quirks.
+export const exampleProjects: ExampleProject[] = [...legacyExamples, ...circuitExamples];
 
 // Get examples by category
 export function getExamplesByCategory(category: ExampleProject['category']): ExampleProject[] {
