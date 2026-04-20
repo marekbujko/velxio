@@ -13,7 +13,6 @@ import type { CompilationLog } from '../../utils/compilationLogger';
 import { exportToWokwiZip, importFromWokwiZip } from '../../utils/wokwiZip';
 import { readFirmwareFile } from '../../utils/firmwareLoader';
 import { trackCompileCode, trackRunSimulation, trackStopSimulation, trackResetSimulation, trackOpenLibraryManager } from '../../utils/analytics';
-import { ElectricalModeToggle } from '../analog-ui/ElectricalModeToggle';
 import './EditorToolbar.css';
 
 interface EditorToolbarProps {
@@ -613,9 +612,6 @@ export const EditorToolbar = ({ consoleOpen, setConsoleOpen, compileLogs: _compi
             style={{ display: 'none' }}
             onChange={handleFirmwareUpload}
           />
-
-          {/* Electrical simulation toggle (ngspice-WASM) */}
-          <ElectricalModeToggle />
 
           {/* Library Manager — always visible with label */}
           <button

@@ -200,43 +200,90 @@ function hasNet(netNames: Map<string, string>, name: string): boolean {
 /**
  * Detect nets that lack a DC path to ground.
  *
- * Heuristic: look at the emitted cards. A net is "DC-safe" if it is named "0",
- * or if it appears in the netlist as a terminal of any of:
- *   - a resistor (R...)
- *   - a voltage source (V...)
- *   - a current source (I...)
- *   - an inductor (L... — treated as DC short)
- *   - a switch (S...)
- *   - a behavioral source (B...)
- *   - an MNA-controlled source (E..., G..., F..., H...)
- *   - a subckt instance (X...)
+ * Does a graph walk starting from node "0" and "vcc_rail" (both have a
+ * hard-wired source in every circuit that references them), traversing only
+ * DC-conducting cards:
+ *   - resistor (R...)
+ *   - voltage source (V...)           — V-source is a DC short for connectivity
+ *   - current source (I...)
+ *   - inductor (L... — treated as DC short)
+ *   - switch (S...)
+ *   - behavioral source (B...)         — also connects output to ground via its KCL stamp
+ *   - MNA-controlled source (E..., G..., F..., H...)
+ *   - subckt instance (X...)           — optimistic: assume any X instance exposes DC paths
  *
- * Components that don't offer a DC path on their own:
- *   - bare capacitor (C...)
- *   - reverse-biased diode (D...) — conservative: treat as floating unless R/L nearby
+ * Capacitors (C...) are intentionally NOT conductive in this walk — they are
+ * OPEN at DC, so a net connected only via a C to another node is still floating.
  *
- * We actually take a looser approach: any net that has at least one R/L/V/I/S/B/E/X
- * terminal is DC-safe. Otherwise, add a 100 MΩ pull.
+ * An older version of this function used a "touched-by-R" heuristic: a net
+ * was marked safe if ANY resistor terminal referenced it. That was wrong for
+ * topologies like `V0-R1-n0-R2-n1-C-0` where n0 and n1 are chained through
+ * R's but neither has a DC path to ground (shipping RC-low-pass example).
+ * The graph walk fixes that — it only considers a net safe when a DC path
+ * actually traces back to node "0".
+ *
+ * Returns the set of nets that should receive an auto 100 MΩ pull-down.
  */
 function detectFloatingNets(netNames: Map<string, string>, cards: string[]): Set<string> {
-  const touched = new Set<string>();
   const nets = new Set(netNames.values());
+
+  // Build an undirected adjacency list over DC-conducting elements.
+  // For a 2-terminal element the two nets on it become connected.
+  // For 3+ terminal (E/G/F/H, S, X) we connect every pair of listed nets —
+  // this is conservative (over-connects), which is the safe side for a
+  // "does this net have SOME DC path to ground" question.
+  const adj = new Map<string, Set<string>>();
+  function ensure(n: string) {
+    if (!adj.has(n)) adj.set(n, new Set());
+    return adj.get(n)!;
+  }
+  function link(a: string, b: string) {
+    if (a === b) return;
+    ensure(a).add(b);
+    ensure(b).add(a);
+  }
+
+  // Cards that define a DC path between their listed nets. Capacitor ('C')
+  // is deliberately excluded.
+  const DC_PREFIXES = 'RLVISBEGFHX';
 
   for (const line of cards) {
     const prefix = line[0];
-    if ('RLVISBEGFHX'.indexOf(prefix) < 0) continue;
+    if (DC_PREFIXES.indexOf(prefix) < 0) continue;
     const tokens = line.split(/\s+/);
-    // Token 0 is the card name; subsequent tokens up to the value are nets
-    for (let i = 1; i < Math.min(tokens.length, 4); i++) {
+    // tokens[0] is the element name (e.g. "R_r1", "V_VCC_RAIL"). The nets
+    // appear next; stop at the first token that isn't a valid net name.
+    const pinNets: string[] = [];
+    for (let i = 1; i < tokens.length; i++) {
       const t = tokens[i];
-      if (nets.has(t)) touched.add(t);
+      if (!nets.has(t) && t !== '0' && t !== 'vcc_rail') break;
+      pinNets.push(t);
     }
+    // Connect every pair of pins — handles both 2-terminal and N-terminal.
+    for (let i = 0; i < pinNets.length; i++) {
+      for (let j = i + 1; j < pinNets.length; j++) {
+        link(pinNets[i], pinNets[j]);
+      }
+    }
+  }
+
+  // BFS from node "0" (and "vcc_rail", which always has V_VCC_RAIL → 0 edge).
+  const reachable = new Set<string>();
+  const queue: string[] = ['0'];
+  if (adj.has('vcc_rail')) queue.push('vcc_rail');
+  while (queue.length) {
+    const n = queue.shift()!;
+    if (reachable.has(n)) continue;
+    reachable.add(n);
+    const neigh = adj.get(n);
+    if (!neigh) continue;
+    for (const m of neigh) if (!reachable.has(m)) queue.push(m);
   }
 
   const floating = new Set<string>();
   for (const net of nets) {
     if (net === '0' || net === 'vcc_rail') continue;
-    if (!touched.has(net)) floating.add(net);
+    if (!reachable.has(net)) floating.add(net);
   }
   return floating;
 }

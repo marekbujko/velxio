@@ -14,6 +14,7 @@ import type { SegmentHandle } from './WireLayer';
 import { ElectricalOverlay } from '../analog-ui/ElectricalOverlay';
 import { BoardOnCanvas } from './BoardOnCanvas';
 import { PartSimulationRegistry } from '../../simulation/parts';
+import { isSpiceMapped } from '../../simulation/spice/componentToSpice';
 import { PinOverlay } from './PinOverlay';
 import { isBoardComponent, boardPinToNumber } from '../../utils/boardPinMapping';
 import { autoWireColor, WIRE_KEY_COLORS } from '../../utils/wireUtils';
@@ -660,8 +661,18 @@ export const SimulatorCanvas = () => {
       // Components with attachEvents in PartSimulationRegistry manage their own
       // visual state (e.g. LED, servo, buzzer). Skip generic digital/PWM updates for
       // them — they already handle GND logic internally via getArduinoPinHelper.
+      //
+      // SPICE-mapped components (every analog/mixed part — resistors, capacitors,
+      // diodes, MOSFETs, op-amps, regulators, …) are ALSO treated as self-managed:
+      // SPICE is the authoritative source for their electrical state. If we echoed
+      // the raw digital pin value back into `components[i].properties.state` on
+      // every toggle, the store update would invalidate the solver debounce every
+      // ~2 ms under PWM (490 Hz) and the solver would effectively never run — the
+      // root cause of the MOSFET-PWM-LED regression. This single rule makes every
+      // current and future SPICE mapper immune to that feedback loop.
       const logic = PartSimulationRegistry.get(component.metadataId);
-      const hasSelfManagedVisuals = !!(logic && logic.attachEvents);
+      const spiceOwned = isSpiceMapped(component.metadataId);
+      const hasSelfManagedVisuals = !!(logic && logic.attachEvents) || spiceOwned;
 
       // Generic GND check: for wire-connected output components that don't manage
       // their own state, require at least one GND wire before activating.
@@ -690,17 +701,6 @@ export const SimulatorCanvas = () => {
       );
       unsubscribers.push(unsubscribe);
 
-      // PWM subscription: update LED opacity when the pin receives a PWM duty cycle.
-      // Skip for self-managed components (servo, buzzer) — their duty cycle is a
-      // control signal, not a brightness value, so setting opacity would cause flicker.
-      if (!hasSelfManagedVisuals) {
-        const pwmUnsub = pinManager.onPwmChange(pin, (_p, duty) => {
-          if (!hasGnd) return; // no GND → stay dark even under PWM
-          const el = document.getElementById(component.id);
-          if (el) el.style.opacity = duty > 0 ? String(duty) : '';
-        });
-        unsubscribers.push(pwmUnsub);
-      }
     };
 
     components.forEach((component) => {
@@ -725,10 +725,6 @@ export const SimulatorCanvas = () => {
             const boardInstance = boards.find(b => b.id === otherEndpoint.componentId);
             const lookupKey = boardInstance ? boardInstance.boardKind : otherEndpoint.componentId;
             const pin = boardPinToNumber(lookupKey, otherEndpoint.pinName);
-            console.log(
-              `[WirePin] component=${component.id} board=${otherEndpoint.componentId}` +
-              ` kind=${lookupKey} pinName=${otherEndpoint.pinName} → gpioPin=${pin}`
-            );
             if (pin !== null && pin >= 0) {
               subscribeComponentToPin(component, pin, selfEndpoint.pinName, true);
             } else if (pin === null) {

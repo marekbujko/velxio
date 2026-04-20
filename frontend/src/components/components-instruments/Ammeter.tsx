@@ -14,15 +14,11 @@ interface AmmeterProps {
 }
 
 export function Ammeter({ id }: AmmeterProps) {
-  const mode = useElectricalStore((s) => s.mode);
   const branchCurrents = useElectricalStore((s) => s.branchCurrents);
   const converged = useElectricalStore((s) => s.converged);
   const error = useElectricalStore((s) => s.error);
 
   const reading = useMemo(() => {
-    if (mode === 'off') {
-      return { kind: 'ammeter' as const, value: 0, unit: '—' as const, display: '— off', stale: true };
-    }
     return readAmmeter(
       { id, metadataId: 'instr-ammeter', properties: {} },
       {
@@ -34,7 +30,7 @@ export function Ammeter({ id }: AmmeterProps) {
         submittedNetlist: '',
       },
     );
-  }, [mode, branchCurrents, converged, error, id]);
+  }, [branchCurrents, converged, error, id]);
 
   return (
     <div

@@ -169,9 +169,13 @@ function collectPinStates(
 
 export function wireElectricalSolver(): () => void {
 
+  // Cache the last solve input JSON to skip redundant solves.
+  // This is critical: without it, the periodic timer floods the scheduler
+  // with identical requests, delaying the result that carries updated
+  // pin states (e.g. PWM) until after the simulation stops.
+  let lastInputJson = '';
+
   function maybeSolve() {
-    const { mode } = useElectricalStore.getState();
-    if (mode === 'off') return;
     const storeState = useSimulatorStore.getState();
     const snap = {
       components: storeState.components,
@@ -183,6 +187,12 @@ export function wireElectricalSolver(): () => void {
       })),
     };
     const input = buildInputFromStore(snap);
+
+    // Deduplicate: skip if the input hasn't changed since the last solve.
+    const inputJson = JSON.stringify(input);
+    if (inputJson === lastInputJson) return;
+    lastInputJson = inputJson;
+
     // pinNetMap is now built inside buildNetlist() from the same UF and
     // returned via CircuitScheduler → ElectricalSolveResult → store.
     useElectricalStore.getState().triggerSolve(input);
@@ -203,23 +213,15 @@ export function wireElectricalSolver(): () => void {
         const v = nodeVoltages[netName];
         if (v == null) continue;
         const clamped = Math.max(0, Math.min(vMax, v));
-        // setAdcVoltage handles AVR (pin 14-19), RP2040 (GPIO 26-29),
-        // and ESP32 (bridge shim) transparently.
         const gpioPin = ADC_PIN_TO_GPIO[board.boardKind]?.(pinName, channel);
         if (gpioPin != null) setAdcVoltage(sim, gpioPin, clamped);
       }
     }
   }
 
-  // Re-solve on components / wires / mode changes.
+  // Re-solve on components / wires changes.
   const unsubSim = useSimulatorStore.subscribe((state, prev) => {
     if (state.components !== prev.components || state.wires !== prev.wires) {
-      maybeSolve();
-    }
-  });
-
-  const unsubMode = useElectricalStore.subscribe((state, prev) => {
-    if (state.mode !== prev.mode && state.mode !== 'off') {
       maybeSolve();
     }
   });
@@ -249,9 +251,8 @@ export function wireElectricalSolver(): () => void {
   const SOLVE_INTERVAL_MS = 200;
 
   function updateSolveTimer() {
-    const { mode } = useElectricalStore.getState();
     const anyRunning = useSimulatorStore.getState().boards.some((b) => b.running);
-    if (mode !== 'off' && anyRunning) {
+    if (anyRunning) {
       if (!solveInterval) {
         solveInterval = setInterval(maybeSolve, SOLVE_INTERVAL_MS);
       }
@@ -267,17 +268,11 @@ export function wireElectricalSolver(): () => void {
     if (wasRunning !== nowRunning) updateSolveTimer();
   });
 
-  const unsubModeTimer = useElectricalStore.subscribe((state, prev) => {
-    if (state.mode !== prev.mode) updateSolveTimer();
-  });
-
   return () => {
     unsubSim();
-    unsubMode();
     unsubResult();
     unsubBoards();
     unsubRunning();
-    unsubModeTimer();
     if (solveInterval) clearInterval(solveInterval);
   };
 }

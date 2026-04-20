@@ -11,7 +11,29 @@ import { buildNetlist } from '../simulation/spice/NetlistBuilder';
 import { mappedMetadataIds, componentToSpice } from '../simulation/spice/componentToSpice';
 import { runNetlist } from '../simulation/spice/SpiceEngine';
 
-const MINIMAL_FIXTURES: Record<string, { pins: string[]; properties?: Record<string, unknown> }> = {
+/**
+ * Fixture describing how to wire one component for the ngspice-acceptance test.
+ *
+ * `topology` — optional per-pin override. For each pin we can specify:
+ *   - 'vcc'  → tie pin directly to the +5 V rail
+ *   - 'gnd'  → tie pin directly to the 0 V rail
+ *   - 'load' → connect pin through a 1 MΩ resistor to GND (high-Z observation)
+ *
+ * Pins NOT listed in `topology` fall back to the default wiring strategy:
+ *   first pin → VCC, last pin → GND, every middle pin → 'load'.
+ *
+ * Why the override exists: components that DRIVE one of their own pins with a
+ * B-source (logic gates → Y, regulators → VOUT, signal-generator → SIG) would
+ * conflict with the default "last pin → GND" short. For those, we declare the
+ * output pin as 'load' so ngspice can actually observe it.
+ */
+interface Fixture {
+  pins: string[];
+  properties?: Record<string, unknown>;
+  topology?: Record<string, 'vcc' | 'gnd' | 'load'>;
+}
+
+const MINIMAL_FIXTURES: Record<string, Fixture> = {
   resistor: { pins: ['1', '2'] },
   'resistor-us': { pins: ['1', '2'] },
   capacitor: { pins: ['1', '2'] },
@@ -38,36 +60,41 @@ const MINIMAL_FIXTURES: Record<string, { pins: string[]; properties?: Record<str
   'opamp-lm741': { pins: ['IN+', 'IN-', 'OUT'] },
   'opamp-tl072': { pins: ['IN+', 'IN-', 'OUT'] },
   'opamp-lm324': { pins: ['IN+', 'IN-', 'OUT'] },
-  'reg-7805':  { pins: ['VIN', 'GND', 'VOUT'] },
-  'reg-7812':  { pins: ['VIN', 'GND', 'VOUT'] },
-  'reg-7905':  { pins: ['VIN', 'GND', 'VOUT'] },
-  'reg-lm317': { pins: ['VIN', 'ADJ', 'VOUT'] },
+  // Linear regulators drive VOUT via a B-source. Don't short VOUT to GND —
+  // load it so ngspice can actually observe the output voltage.
+  'reg-7805':  { pins: ['VIN', 'GND', 'VOUT'], topology: { VIN: 'vcc', GND: 'gnd', VOUT: 'load' } },
+  'reg-7812':  { pins: ['VIN', 'GND', 'VOUT'], topology: { VIN: 'vcc', GND: 'gnd', VOUT: 'load' } },
+  'reg-7905':  { pins: ['VIN', 'GND', 'VOUT'], topology: { VIN: 'vcc', GND: 'gnd', VOUT: 'load' } },
+  'reg-lm317': { pins: ['VIN', 'ADJ', 'VOUT'], topology: { VIN: 'vcc', ADJ: 'gnd', VOUT: 'load' } },
   'battery-9v':        { pins: ['+', '−'] },
   'battery-aa':        { pins: ['+', '−'] },
   'battery-coin-cell': { pins: ['+', '−'] },
-  'signal-generator':  { pins: ['SIG', 'GND'], properties: { waveform: 'sine', frequency: 1000, amplitude: 1, offset: 0 } },
+  // Signal generator drives SIG via a V-source; load it to GND, don't short it.
+  'signal-generator':  { pins: ['SIG', 'GND'], properties: { waveform: 'sine', frequency: 1000, amplitude: 1, offset: 0 }, topology: { SIG: 'load', GND: 'gnd' } },
   pushbutton: { pins: ['A', 'B'] },
   'slide-switch': { pins: ['1', '2'], properties: { value: 1 } },
   'slide-potentiometer': { pins: ['VCC', 'SIG', 'GND'], properties: { value: '10k', position: 50 } },
-  'ntc-temperature-sensor': { pins: ['1', '2'], properties: { temperature: 25 } },
-  photoresistor: { pins: ['LDR1', 'LDR2'], properties: { lux: 500 } },
+  'ntc-temperature-sensor': { pins: ['VCC', 'OUT', 'GND'], properties: { temperature: 25 } },
+  photoresistor: { pins: ['VCC', 'AO', 'GND'], properties: { lux: 500 } },
   'instr-voltmeter': { pins: ['V+', 'V-'] },
   'instr-ammeter': { pins: ['A+', 'A-'] },
-  'logic-gate-and':  { pins: ['A', 'B', 'Y'] },
-  'logic-gate-nand': { pins: ['A', 'B', 'Y'] },
-  'logic-gate-or':   { pins: ['A', 'B', 'Y'] },
-  'logic-gate-nor':  { pins: ['A', 'B', 'Y'] },
-  'logic-gate-xor':  { pins: ['A', 'B', 'Y'] },
-  'logic-gate-xnor': { pins: ['A', 'B', 'Y'] },
-  'logic-gate-not':  { pins: ['A', 'Y'] },
-  'logic-gate-and-3':  { pins: ['A', 'B', 'C', 'Y'] },
-  'logic-gate-or-3':   { pins: ['A', 'B', 'C', 'Y'] },
-  'logic-gate-nand-3': { pins: ['A', 'B', 'C', 'Y'] },
-  'logic-gate-nor-3':  { pins: ['A', 'B', 'C', 'Y'] },
-  'logic-gate-and-4':  { pins: ['A', 'B', 'C', 'D', 'Y'] },
-  'logic-gate-or-4':   { pins: ['A', 'B', 'C', 'D', 'Y'] },
-  'logic-gate-nand-4': { pins: ['A', 'B', 'C', 'D', 'Y'] },
-  'logic-gate-nor-4':  { pins: ['A', 'B', 'C', 'D', 'Y'] },
+  // Logic gates drive Y via a B-source. Drive inputs to VCC (high), observe
+  // Y via a 1 MΩ load — shorting Y to GND would collide with the B-source.
+  'logic-gate-and':  { pins: ['A', 'B', 'Y'], topology: { A: 'vcc', B: 'vcc', Y: 'load' } },
+  'logic-gate-nand': { pins: ['A', 'B', 'Y'], topology: { A: 'vcc', B: 'vcc', Y: 'load' } },
+  'logic-gate-or':   { pins: ['A', 'B', 'Y'], topology: { A: 'vcc', B: 'vcc', Y: 'load' } },
+  'logic-gate-nor':  { pins: ['A', 'B', 'Y'], topology: { A: 'vcc', B: 'vcc', Y: 'load' } },
+  'logic-gate-xor':  { pins: ['A', 'B', 'Y'], topology: { A: 'vcc', B: 'vcc', Y: 'load' } },
+  'logic-gate-xnor': { pins: ['A', 'B', 'Y'], topology: { A: 'vcc', B: 'vcc', Y: 'load' } },
+  'logic-gate-not':  { pins: ['A', 'Y'],      topology: { A: 'vcc', Y: 'load' } },
+  'logic-gate-and-3':  { pins: ['A', 'B', 'C', 'Y'], topology: { A: 'vcc', B: 'vcc', C: 'vcc', Y: 'load' } },
+  'logic-gate-or-3':   { pins: ['A', 'B', 'C', 'Y'], topology: { A: 'vcc', B: 'vcc', C: 'vcc', Y: 'load' } },
+  'logic-gate-nand-3': { pins: ['A', 'B', 'C', 'Y'], topology: { A: 'vcc', B: 'vcc', C: 'vcc', Y: 'load' } },
+  'logic-gate-nor-3':  { pins: ['A', 'B', 'C', 'Y'], topology: { A: 'vcc', B: 'vcc', C: 'vcc', Y: 'load' } },
+  'logic-gate-and-4':  { pins: ['A', 'B', 'C', 'D', 'Y'], topology: { A: 'vcc', B: 'vcc', C: 'vcc', D: 'vcc', Y: 'load' } },
+  'logic-gate-or-4':   { pins: ['A', 'B', 'C', 'D', 'Y'], topology: { A: 'vcc', B: 'vcc', C: 'vcc', D: 'vcc', Y: 'load' } },
+  'logic-gate-nand-4': { pins: ['A', 'B', 'C', 'D', 'Y'], topology: { A: 'vcc', B: 'vcc', C: 'vcc', D: 'vcc', Y: 'load' } },
+  'logic-gate-nor-4':  { pins: ['A', 'B', 'C', 'D', 'Y'], topology: { A: 'vcc', B: 'vcc', C: 'vcc', D: 'vcc', Y: 'load' } },
   'diode-1n5817': { pins: ['A', 'C'] },
   'diode-1n5819': { pins: ['A', 'C'] },
   'photodiode':   { pins: ['A', 'C'], properties: { lux: 500 } },
@@ -109,11 +136,13 @@ describe('componentToSpice — catalog completeness', () => {
   });
 });
 
-// Op-amps have huge open-loop gain and need real feedback to converge in DC —
-// can't be tested with the naive one-component fixture below. Multi-gate ICs
-// use B-sources that drive the output pin; the topology test would short
-// that pin to GND creating a V-source conflict. They have their own dedicated
-// tests in spice-active.test.ts, spice-opamps.test.ts and spice_mapped_74hc.test.js.
+// Components that can't be tested with the one-component harness regardless
+// of topology overrides:
+//   - Op-amps have huge open-loop gain; need real feedback (e.g. inverting
+//     or follower) to converge. Covered by spice-opamps.test.ts.
+//   - Multi-gate ICs (74hc*, motor-driver) have many output pins that all
+//     need individual loads. Covered by spice-active.test.ts and
+//     spice_mapped_74hc.test.js.
 const NEEDS_CUSTOM_TOPOLOGY = new Set([
   'opamp-ideal',
   'opamp-lm358',
@@ -135,9 +164,6 @@ describe('componentToSpice — ngspice accepts every card', () => {
     if (NEEDS_CUSTOM_TOPOLOGY.has(id)) continue;
     it(`${id} produces a netlist ngspice can solve`, { timeout: 30_000 }, async () => {
       const fx = MINIMAL_FIXTURES[id];
-      // Build a minimal closed circuit: connect the component between a
-      // 5V source and ground, plus a 1 MΩ load on any spare pin.
-      const wires = [];
       const pins = fx.pins;
       const board = {
         id: 'brd',
@@ -146,54 +172,71 @@ describe('componentToSpice — ngspice accepts every card', () => {
         groundPinNames: ['GND'],
         vccPinNames: ['VCC'],
       };
-      // Wire first pin to VCC, last pin to GND, middle pins (if any) to
-      // their own auto-created loads.
-      wires.push({
-        id: 'w0',
-        start: { componentId: 'brd', pinName: 'VCC' },
-        end: { componentId: 'dut', pinName: pins[0] },
+
+      // Decide where each pin goes: explicit topology override wins; otherwise
+      // fall back to the "first → VCC, last → GND, middle → load" default.
+      type PinRole = 'vcc' | 'gnd' | 'load';
+      const roleOf = (pinName: string, idx: number): PinRole => {
+        if (fx.topology && fx.topology[pinName]) return fx.topology[pinName];
+        if (idx === 0) return 'vcc';
+        if (idx === pins.length - 1) return 'gnd';
+        return 'load';
+      };
+
+      const wires: Array<{ id: string; start: { componentId: string; pinName: string }; end: { componentId: string; pinName: string } }> = [];
+      const loadResistors: Array<{ id: string; metadataId: string; properties: Record<string, unknown> }> = [];
+
+      pins.forEach((pinName, idx) => {
+        const role = roleOf(pinName, idx);
+        if (role === 'vcc') {
+          wires.push({
+            id: `w_${idx}_vcc`,
+            start: { componentId: 'brd', pinName: 'VCC' },
+            end: { componentId: 'dut', pinName },
+          });
+        } else if (role === 'gnd') {
+          wires.push({
+            id: `w_${idx}_gnd`,
+            start: { componentId: 'dut', pinName },
+            end: { componentId: 'brd', pinName: 'GND' },
+          });
+        } else {
+          // 'load': wire pin through an auto-created 1 MΩ resistor to GND.
+          const loadId = `load_${idx}`;
+          loadResistors.push({ id: loadId, metadataId: 'resistor', properties: { value: '1Meg' } });
+          wires.push({
+            id: `w_${idx}_load_a`,
+            start: { componentId: 'dut', pinName },
+            end: { componentId: loadId, pinName: '1' },
+          });
+          wires.push({
+            id: `w_${idx}_load_b`,
+            start: { componentId: loadId, pinName: '2' },
+            end: { componentId: 'brd', pinName: 'GND' },
+          });
+        }
       });
-      wires.push({
-        id: 'w1',
-        start: { componentId: 'dut', pinName: pins[pins.length - 1] },
-        end: { componentId: 'brd', pinName: 'GND' },
-      });
-      const extraLoadCards: string[] = [];
-      for (let i = 1; i < pins.length - 1; i++) {
-        wires.push({
-          id: `w_mid_${i}`,
-          start: { componentId: 'dut', pinName: pins[i] },
-          end: { componentId: `load_${i}`, pinName: '1' },
-        });
-        wires.push({
-          id: `w_mid_${i}_gnd`,
-          start: { componentId: `load_${i}`, pinName: '2' },
-          end: { componentId: 'brd', pinName: 'GND' },
-        });
-        extraLoadCards.push(`R_load_${i} n_probe_${i} 0 1Meg`);
-      }
+
       const { netlist } = buildNetlist({
         components: [
           { id: 'dut', metadataId: id, properties: fx.properties ?? {} },
-          ...Array.from({ length: pins.length - 2 }, (_, i) => ({
-            id: `load_${i + 1}`,
-            metadataId: 'resistor',
-            properties: { value: '1Meg' },
-          })),
+          ...loadResistors,
         ],
         wires,
         boards: [board],
         analysis: { kind: 'op' },
       });
 
-      // Must at least contain the device's card (R_, C_, L_, D_, Q_, M_, E_)
-      expect(netlist).toMatch(new RegExp(`[RCLDQMES]_dut`));
+      // Must at least contain the device's card. Accepted prefixes:
+      //   R/C/L (passives), D (diode), Q/M (BJT/MOSFET), E (VCVS),
+      //   S (switch), V (voltage source, e.g. signal-generator, battery),
+      //   B (behavioral source, e.g. logic gates, regulators, op-amps).
+      expect(netlist).toMatch(new RegExp(`[RCLDQMESVB]_dut`));
 
       const result = await runNetlist(netlist);
       // Accept if ngspice returned any voltage variable without throwing
       expect(result.variableNames.length).toBeGreaterThan(0);
       expect(Number.isFinite(result.dcValue(result.variableNames[0]))).toBe(true);
-      void extraLoadCards;
     });
   }
 });

@@ -17,6 +17,10 @@ import { useSimulatorStore } from '../store/useSimulatorStore';
 import { PartSimulationRegistry } from '../simulation/parts';
 import { isBoardComponent, boardPinToNumber } from '../utils/boardPinMapping';
 
+// Side-effect import: registers ALL wokwi custom elements (including new ones
+// like wokwi-capacitor, wokwi-inductor) so document.createElement() works.
+import '@wokwi/elements';
+
 interface DynamicComponentProps {
   id: string;
   metadata: ComponentMetadata;
@@ -226,8 +230,9 @@ export const DynamicComponent: React.FC<DynamicComponentProps> = ({
           'analog-resistor':        ['A', 'B'],
           'analog-capacitor':       ['A', 'B'],
           'analog-inductor':        ['A', 'B'],
-          'ntc-temperature-sensor': ['1', '2'],
-          'photoresistor':          ['LDR1', 'LDR2'],
+          // NTC and photoresistor breakouts are 3-pin active modules (VCC/GND
+          // + analog output); not traceable as 2-terminal passives. Their
+          // analog output is already an ADC-readable pin on its own.
         };
 
         // Depth-limited BFS: trace from (fromId, fromPin) through wires,

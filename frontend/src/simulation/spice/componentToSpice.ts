@@ -126,13 +126,20 @@ const MAPPERS: Record<string, Mapper> = {
   },
 
   // LEDs (colored)
+  // A zero-volt sense source is inserted in series so ngspice emits
+  // `i(v_<id>_sense)` in the branch currents (diodes on their own produce no
+  // `i(...)` vector). BasicParts.ts reads that key to drive `el.brightness`.
   led: (comp, netLookup) => {
     const pins = twoPin(comp, netLookup, 'A', 'C');
     if (!pins) return null;
     const color = String(comp.properties.color ?? 'red').toLowerCase();
     const model = LED_MODELS[color] ?? LED_MODELS.red;
+    const midNet = `${comp.id}_sense_mid`;
     return {
-      cards: [`D_${comp.id} ${pins[0]} ${pins[1]} ${model.name}`],
+      cards: [
+        `V_${comp.id}_sense ${pins[0]} ${midNet} DC 0`,
+        `D_${comp.id} ${midNet} ${pins[1]} ${model.name}`,
+      ],
       modelsUsed: new Set([`.model ${model.name} D(Is=${model.Is} N=${model.n})`]),
     };
   },
@@ -546,15 +553,32 @@ const MAPPERS: Record<string, Mapper> = {
     };
   },
 
-  // NTC temperature sensor (β-model)
+  // NTC temperature sensor — 3-pin breakout module (VCC, GND, OUT).
+  // Internal topology: NTC thermistor between VCC and OUT, plus an internal
+  // 10k pull-down from OUT to GND. Temperature up → R_ntc down → V_OUT up.
+  // Matches the β-model math used in the ntc-temperature example.
   'ntc-temperature-sensor': (comp, netLookup) => {
-    const pins = twoPin(comp, netLookup, '1', '2');
-    if (!pins) return null;
+    const vcc = netLookup('VCC');
+    const gnd = netLookup('GND');
+    const out = netLookup('OUT');
     const Tc = Number(comp.properties.temperature ?? 25);
     const R0 = parseValueWithUnits(comp.properties.R0, 10_000);
     const beta = Number(comp.properties.beta ?? 3950);
-    const R = ntcResistance(Tc, R0, 298.15, beta);
-    return emitResistor(comp, pins, R);
+    const Rntc = ntcResistance(Tc, R0, 298.15, beta);
+    if (!vcc || !gnd || !out) {
+      // Fallback for legacy 2-pin wiring ('1' / '2'): emit bare thermistor.
+      const pins = twoPin(comp, netLookup, '1', '2');
+      if (!pins) return null;
+      return emitResistor(comp, pins, Rntc);
+    }
+    const Rpull = parseValueWithUnits(comp.properties.pullup, 10_000);
+    return {
+      cards: [
+        `R_${comp.id}_ntc ${vcc} ${out} ${Rntc}`,
+        `R_${comp.id}_pull ${out} ${gnd} ${Rpull}`,
+      ],
+      modelsUsed: new Set(),
+    };
   },
 
   // Ammeter — inserts a 0 V source so ngspice reports the branch current.
@@ -970,15 +994,33 @@ const MAPPERS: Record<string, Mapper> = {
   },
 
   // Photoresistor (R(lux) = R_dark / (1 + k·lux))
+  // Photoresistor sensor — 4-pin breakout module (VCC, GND, DO, AO).
+  // Internal topology: LDR between VCC and AO, plus an internal 10k pull-down
+  // from AO to GND. Brighter light → LDR resistance drops → V_AO rises.
+  // The DO (digital threshold) pin is ignored for analog simulation.
   photoresistor: (comp, netLookup) => {
-    const pins = twoPin(comp, netLookup, 'LDR1', 'LDR2');
-    const alt = pins ?? twoPin(comp, netLookup, '1', '2');
-    if (!alt) return null;
     const lux = Number(comp.properties.lux ?? 500);
     const Rdark = parseValueWithUnits(comp.properties.dark, 1_000_000);
     const k = Number(comp.properties.k ?? 5);
-    const R = Rdark / (1 + k * lux / 1000);
-    return emitResistor(comp, alt, R);
+    const Rldr = Rdark / (1 + k * lux / 1000);
+    const vcc = netLookup('VCC');
+    const gnd = netLookup('GND');
+    const ao = netLookup('AO');
+    if (vcc && gnd && ao) {
+      const Rpull = parseValueWithUnits(comp.properties.pullup, 10_000);
+      return {
+        cards: [
+          `R_${comp.id}_ldr ${vcc} ${ao} ${Rldr}`,
+          `R_${comp.id}_pull ${ao} ${gnd} ${Rpull}`,
+        ],
+        modelsUsed: new Set(),
+      };
+    }
+    // Legacy / discrete LDR fallbacks: emit bare 2-terminal resistor.
+    const pins = twoPin(comp, netLookup, 'LDR1', 'LDR2')
+      ?? twoPin(comp, netLookup, '1', '2');
+    if (!pins) return null;
+    return emitResistor(comp, pins, Rldr);
   },
 };
 

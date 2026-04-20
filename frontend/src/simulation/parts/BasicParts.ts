@@ -1,4 +1,5 @@
 import { PartSimulationRegistry } from './PartSimulationRegistry';
+import { useElectricalStore } from '../../store/useElectricalStore';
 
 /**
  * Basic Pushbutton implementation (full-size)
@@ -140,24 +141,48 @@ PartSimulationRegistry.register('led', {
         const unsubs: (() => void)[] = [];
         let anodeHigh  = false;
         let cathodeLow = false;
+        // Last known SPICE brightness + timestamp. When a solve hasn't
+        // landed yet (engine warm-up, between-solve gap, ngspice iteration
+        // holes), we hold this value for 500 ms before decaying to zero —
+        // prevents visible flicker while still dying visibly if the solver
+        // dies for good (useful diagnostic).
+        let lastSpiceBrightness = 0;
+        let lastSpiceTs = 0;
+        const HOLD_MS = 500;
 
         const update = () => {
-            // When electrical mode is active, use real branch current for
-            // analog brightness (0..1) instead of boolean on/off. The SPICE
-            // mapper emits a diode card `D_<componentId>` whose branch current
-            // is stored in `branchCurrents`.
-            try {
-                const { useElectricalStore } = require('../../store/useElectricalStore');
-                const { mode, branchCurrents } = useElectricalStore.getState();
-                if (mode !== 'off') {
-                    const iKey = `d_${componentId}`;
-                    const current = Math.abs(branchCurrents[iKey] ?? 0);
-                    el.value = current > 1e-6;
-                    el.brightness = Math.min(1, current / 0.020); // 20 mA = full brightness
-                    return;
-                }
-            } catch { /* store not available — fall through to digital mode */ }
+            // SPICE is always active. Use real branch current for analog
+            // brightness (0..1). The SPICE mapper emits a V-sense zero-volt
+            // source in series with the diode (`V_<componentId>_sense`) so
+            // ngspice exposes the branch current as
+            // `i(v_<componentId>_sense)` → stored under the
+            // `v_<componentId>_sense` key in `branchCurrents`.
+            //
+            // Digital fallback (anodeHigh && cathodeLow) is only used if
+            // the electrical store can't be loaded at all — e.g. in a
+            // Node-side test harness that stubs it out.
+            const { branchCurrents } = useElectricalStore.getState();
+            const iKey = `v_${componentId}_sense`;
+            const raw = branchCurrents[iKey];
+            if (raw !== undefined) {
+                const current = Math.abs(raw);
+                lastSpiceBrightness = Math.min(1, current / 0.020);
+                lastSpiceTs = Date.now();
+                el.value = current > 1e-6;
+                el.brightness = lastSpiceBrightness;
+                return;
+            }
+            if (Date.now() - lastSpiceTs < HOLD_MS && lastSpiceTs > 0) {
+                el.value = lastSpiceBrightness > 1e-3;
+                el.brightness = lastSpiceBrightness;
+                return;
+            }
+            // No SPICE data yet — fall back to digital pin state so the LED
+            // still reacts the moment the user wires it to a GPIO, before
+            // the first solve lands.
+            lastSpiceBrightness = 0;
             el.value = anodeHigh && cathodeLow;
+            el.brightness = el.value ? 1 : 0;
         };
 
         // Cathode pin: -1 means wired to GND (always LOW), >=0 means GPIO
@@ -181,15 +206,16 @@ PartSimulationRegistry.register('led', {
 
         // Also subscribe to electrical store changes to update brightness
         // whenever the SPICE solver delivers a new result.
-        try {
-            const { useElectricalStore } = require('../../store/useElectricalStore');
-            const unsubElectrical = useElectricalStore.subscribe(
-                (state: { branchCurrents: Record<string, number> }, prev: { branchCurrents: Record<string, number> }) => {
-                    if (state.branchCurrents !== prev.branchCurrents) update();
-                },
-            );
-            unsubs.push(unsubElectrical);
-        } catch { /* store not available */ }
+        const unsubElectrical = useElectricalStore.subscribe(
+            (state, prev) => {
+                if (state.branchCurrents !== prev.branchCurrents) update();
+            },
+        );
+        unsubs.push(unsubElectrical);
+
+        // Initial paint — SPICE may already have a solved current for this LED
+        // (e.g. when the component is added to an already-solved circuit).
+        update();
 
         return () => { unsubs.forEach(u => u()); };
     },

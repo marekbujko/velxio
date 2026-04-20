@@ -17,7 +17,6 @@ interface VoltmeterProps {
 }
 
 export function Voltmeter({ id }: VoltmeterProps) {
-  const mode = useElectricalStore((s) => s.mode);
   const nodeVoltages = useElectricalStore((s) => s.nodeVoltages);
   const converged = useElectricalStore((s) => s.converged);
   const error = useElectricalStore((s) => s.error);
@@ -25,9 +24,6 @@ export function Voltmeter({ id }: VoltmeterProps) {
   const boards = useSimulatorStore((s) => s.boards);
 
   const reading = useMemo(() => {
-    if (mode === 'off') {
-      return { kind: 'voltmeter' as const, value: 0, unit: '—' as const, display: '— off', stale: true };
-    }
     const groundPins = boards.flatMap((b) =>
       (BOARD_PIN_GROUPS[b.boardKind] ?? BOARD_PIN_GROUPS.default).gnd.map((pin) => ({
         componentId: b.id,
@@ -53,7 +49,7 @@ export function Voltmeter({ id }: VoltmeterProps) {
         submittedNetlist: '',
       },
     );
-  }, [mode, nodeVoltages, wires, boards, id, converged, error]);
+  }, [nodeVoltages, wires, boards, id, converged, error]);
 
   return (
     <div

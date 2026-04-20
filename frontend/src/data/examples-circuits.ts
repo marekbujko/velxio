@@ -111,7 +111,7 @@ void loop() {
   {
     id: 'ntc-temperature',
     title: 'NTC Temperature Sensor',
-    description: 'NTC thermistor + 10k pull-up resistor. Calculates temperature via beta model.',
+    description: 'NTC breakout module (built-in 10k pull-up). Calculates temperature via beta model.',
     category: 'circuits', difficulty: 'beginner',
     code: `// NTC Temperature Sensor (beta model)
 #define NTC_PIN A0
@@ -132,14 +132,12 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-resistor', id: 'rpull', x: 350, y: 80, properties: { value: '10000' } },
-      { type: 'wokwi-ntc-temperature-sensor', id: 'ntc', x: 350, y: 200, properties: { temperature: '25' } },
+      { type: 'wokwi-ntc-temperature-sensor', id: 'ntc', x: 350, y: 150, properties: { temperature: '25' } },
     ],
     wires: [
-      w('w1', ['arduino-uno','5V'], ['rpull','1'], '#ff0000'),
-      w('w2', ['rpull','2'], ['ntc','1'], '#ffaa00'),
-      w('w3', ['ntc','2'], ['arduino-uno','GND'], '#000000'),
-      w('w4', ['rpull','2'], ['arduino-uno','A0'], '#ffaa00'),
+      w('w1', ['arduino-uno','5V'],  ['ntc','VCC'], '#ff0000'),
+      w('w2', ['ntc','GND'],         ['arduino-uno','GND'], '#000000'),
+      w('w3', ['ntc','OUT'],         ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -239,14 +237,12 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-photoresistor-sensor', id: 'ldr', x: 380, y: 100, properties: { lux: '500' } },
-      { type: 'wokwi-resistor', id: 'rpull', x: 380, y: 220, properties: { value: '10000' } },
+      { type: 'wokwi-photoresistor-sensor', id: 'ldr', x: 380, y: 150, properties: { lux: '500' } },
     ],
     wires: [
-      w('w1', ['arduino-uno','5V'], ['ldr','VCC'], '#ff0000'),
-      w('w2', ['ldr','SIG'], ['rpull','1'], '#ffaa00'),
-      w('w3', ['rpull','2'], ['arduino-uno','GND'], '#000000'),
-      w('w4', ['ldr','SIG'], ['arduino-uno','A0'], '#ffaa00'),
+      w('w1', ['arduino-uno','5V'],  ['ldr','VCC'], '#ff0000'),
+      w('w2', ['ldr','GND'],         ['arduino-uno','GND'], '#000000'),
+      w('w3', ['ldr','AO'],          ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -323,12 +319,18 @@ void loop() {
       { type: 'wokwi-resistor', id: 'rb', x: 380, y: 100, properties: { value: '1000' } },
       { type: 'wokwi-resistor', id: 'rc', x: 480, y: 60, properties: { value: '220' } },
       { type: 'wokwi-led', id: 'led1', x: 480, y: 160, properties: { color: 'green' } },
+      { type: 'wokwi-bjt-2n2222', id: 'q1', x: 480, y: 260, properties: {} },
     ],
     wires: [
+      // Base drive: pin 9 → 1k → base
       w('w1', ['arduino-uno','9'], ['rb','1']),
-      w('w2', ['arduino-uno','5V'], ['rc','1'], '#ff0000'),
-      w('w3', ['rc','2'], ['led1','A']),
-      w('w4', ['led1','C'], ['arduino-uno','GND'], '#000000'),
+      w('w2', ['rb','2'],          ['q1','B']),
+      // Load path: 5V → Rc → LED → collector
+      w('w3', ['arduino-uno','5V'], ['rc','1'], '#ff0000'),
+      w('w4', ['rc','2'],           ['led1','A']),
+      w('w5', ['led1','C'],         ['q1','C']),
+      // Emitter to ground
+      w('w6', ['q1','E'],           ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -347,20 +349,27 @@ void loop() {
     components: [
       UNO,
       { type: 'wokwi-resistor', id: 'rb', x: 380, y: 100, properties: { value: '1000' } },
-      { type: 'wokwi-resistor', id: 'rl', x: 480, y: 200, properties: { value: '220' } },
-      { type: 'wokwi-led', id: 'led1', x: 480, y: 280, properties: { color: 'red' } },
+      { type: 'wokwi-resistor', id: 'rl', x: 520, y: 200, properties: { value: '220' } },
+      { type: 'wokwi-led', id: 'led1', x: 520, y: 280, properties: { color: 'red' } },
+      { type: 'wokwi-bjt-2n3906', id: 'q1', x: 420, y: 160, properties: {} },
     ],
     wires: [
+      // Pin 9 → Rb → Base (LOW = ON for PNP)
       w('w1', ['arduino-uno','9'], ['rb','1']),
-      w('w2', ['rl','2'], ['led1','A']),
-      w('w3', ['led1','C'], ['arduino-uno','GND'], '#000000'),
+      w('w2', ['rb','2'],          ['q1','B']),
+      // Emitter to 5V (high-side)
+      w('w3', ['q1','E'],          ['arduino-uno','5V'], '#ff0000'),
+      // Collector → Rl → LED → GND
+      w('w4', ['q1','C'],          ['rl','1']),
+      w('w5', ['rl','2'],          ['led1','A']),
+      w('w6', ['led1','C'],        ['arduino-uno','GND'], '#000000'),
     ],
   },
 
   {
     id: 'mosfet-pwm-led',
     title: 'MOSFET PWM LED Dimmer',
-    description: '2N7000 N-MOSFET driven by PWM. Vgs=3.3V fully enhances the FET.',
+    description: '2N7000 N-MOSFET as low-side switch. Gate driven by PWM on pin 9 dims the LED.',
     category: 'circuits', difficulty: 'intermediate',
     code: `// MOSFET PWM LED dimmer
 void setup() { pinMode(9, OUTPUT); }
@@ -370,13 +379,24 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-resistor', id: 'rl', x: 420, y: 60, properties: { value: '220' } },
-      { type: 'wokwi-led', id: 'led1', x: 420, y: 160, properties: { color: 'white' } },
+      { type: 'wokwi-resistor', id: 'rl',   x: 420, y: 60,  properties: { value: '220' } },
+      { type: 'wokwi-led',      id: 'led1', x: 420, y: 160, properties: { color: 'white' } },
+      { type: 'wokwi-mosfet-2n7000', id: 'q1', x: 420, y: 260, properties: {} },
+      // Gate pull-down keeps the MOSFET off when the GPIO is high-impedance
+      // (e.g. before setup() runs) — avoids ghost glow during boot.
+      { type: 'wokwi-resistor', id: 'rg',   x: 320, y: 290, properties: { value: '100000' } },
     ],
     wires: [
-      w('w1', ['arduino-uno','5V'], ['rl','1'], '#ff0000'),
-      w('w2', ['rl','2'], ['led1','A']),
-      w('w3', ['led1','C'], ['arduino-uno','GND'], '#000000'),
+      // LED: 5V → R → LED anode → cathode → MOSFET drain
+      w('w1', ['arduino-uno','5V'], ['rl','1'],   '#ff0000'),
+      w('w2', ['rl','2'],           ['led1','A']),
+      w('w3', ['led1','C'],         ['q1','D']),
+      // Source to GND (low-side switch)
+      w('w4', ['q1','S'],           ['arduino-uno','GND'], '#000000'),
+      // PWM gate drive from pin 9, plus pull-down to GND
+      w('w5', ['arduino-uno','9'],  ['q1','G'],            '#ffaa00'),
+      w('w6', ['q1','G'],           ['rg','1']),
+      w('w7', ['rg','2'],           ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -394,11 +414,19 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-resistor', id: 'rl', x: 420, y: 200, properties: { value: '1000' } },
+      { type: 'wokwi-signal-generator', id: 'sg1', x: 300, y: 200,
+        properties: { waveform: 'sine', frequency: 50, amplitude: 5, offset: 0 } },
+      { type: 'wokwi-diode-1n4007', id: 'd1', x: 400, y: 200, properties: {} },
+      { type: 'wokwi-resistor', id: 'rl', x: 500, y: 200, properties: { value: '1000' } },
     ],
     wires: [
-      w('w1', ['rl','2'], ['arduino-uno','GND'], '#000000'),
-      w('w2', ['rl','1'], ['arduino-uno','A0'], '#ffaa00'),
+      // SG out → diode anode → cathode → Rl → GND
+      w('w1', ['sg1','SIG'], ['d1','A']),
+      w('w2', ['d1','C'],    ['rl','1']),
+      w('w3', ['rl','2'],    ['arduino-uno','GND'], '#000000'),
+      w('w4', ['sg1','GND'], ['arduino-uno','GND'], '#000000'),
+      // A0 probes the rectified output
+      w('w5', ['d1','C'],    ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -417,11 +445,18 @@ void loop() {
 }`,
     components: [
       UNO,
+      { type: 'wokwi-battery-9v', id: 'bat', x: 260, y: 160, properties: {} },
       { type: 'wokwi-resistor', id: 'rs', x: 380, y: 100, properties: { value: '220' } },
+      { type: 'wokwi-zener-1n4733', id: 'z1', x: 480, y: 180, properties: {} },
     ],
     wires: [
-      w('w1', ['rs','2'], ['arduino-uno','A0'], '#ffaa00'),
-      w('w2', ['rs','2'], ['arduino-uno','GND'], '#000000'),
+      // 9V battery → Rs → Zener cathode (regulated node → A0)
+      w('w1', ['bat','+'],  ['rs','1'], '#ff0000'),
+      w('w2', ['rs','2'],   ['z1','C']),
+      w('w3', ['z1','C'],   ['arduino-uno','A0'], '#ffaa00'),
+      // Zener anode and battery minus → GND
+      w('w4', ['z1','A'],   ['arduino-uno','GND'], '#000000'),
+      w('w5', ['bat','−'],  ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -437,8 +472,21 @@ void loop() {
   Serial.println("Protected circuit running...");
   delay(1000);
 }`,
-    components: [ UNO ],
-    wires: [],
+    components: [
+      UNO,
+      { type: 'wokwi-battery-9v', id: 'bat', x: 260, y: 180, properties: {} },
+      { type: 'wokwi-diode-1n5817', id: 'd1', x: 380, y: 140, properties: {} },
+      { type: 'wokwi-resistor', id: 'rl', x: 500, y: 140, properties: { value: '1000' } },
+    ],
+    wires: [
+      // Battery + → Schottky anode → cathode → load R → GND (battery −)
+      w('w1', ['bat','+'], ['d1','A'], '#ff0000'),
+      w('w2', ['d1','C'],  ['rl','1']),
+      w('w3', ['rl','2'],  ['arduino-uno','GND'], '#000000'),
+      w('w4', ['bat','−'], ['arduino-uno','GND'], '#000000'),
+      // Probe the protected rail
+      w('w5', ['d1','C'],  ['arduino-uno','A0'], '#ffaa00'),
+    ],
   },
 
   {
@@ -456,18 +504,35 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-resistor', id: 'rb1', x: 350, y: 60, properties: { value: '47000' } },
+      { type: 'wokwi-resistor', id: 'rb1', x: 350, y: 60,  properties: { value: '47000' } },
       { type: 'wokwi-resistor', id: 'rb2', x: 350, y: 180, properties: { value: '10000' } },
-      { type: 'wokwi-resistor', id: 'rc', x: 450, y: 60, properties: { value: '4700' } },
-      { type: 'wokwi-resistor', id: 're', x: 450, y: 280, properties: { value: '1000' } },
+      { type: 'wokwi-resistor', id: 'rc',  x: 450, y: 60,  properties: { value: '4700' } },
+      { type: 'wokwi-resistor', id: 're',  x: 450, y: 280, properties: { value: '1000' } },
+      { type: 'wokwi-bjt-2n2222', id: 'q1', x: 450, y: 170, properties: {} },
+      { type: 'wokwi-signal-generator', id: 'sg1', x: 240, y: 140,
+        properties: { waveform: 'sine', frequency: 1000, amplitude: 0.05, offset: 0 } },
+      // Small "coupling" resistor from SG to the base node so SG can wiggle
+      // the biased base without DC-shifting it.
+      { type: 'wokwi-resistor', id: 'rin', x: 300, y: 140, properties: { value: '10000' } },
     ],
     wires: [
+      // Bias divider: 5V → Rb1 → (base) → Rb2 → GND
       w('w1', ['arduino-uno','5V'], ['rb1','1'], '#ff0000'),
-      w('w2', ['arduino-uno','5V'], ['rc','1'], '#ff0000'),
-      w('w3', ['rb1','2'], ['rb2','1']),
-      w('w4', ['rb2','2'], ['arduino-uno','GND'], '#000000'),
-      w('w5', ['re','2'], ['arduino-uno','GND'], '#000000'),
-      w('w6', ['rc','2'], ['arduino-uno','A0'], '#ffaa00'),
+      w('w2', ['rb1','2'],          ['q1','B']),
+      w('w3', ['q1','B'],           ['rb2','1']),
+      w('w4', ['rb2','2'],          ['arduino-uno','GND'], '#000000'),
+      // Collector: 5V → Rc → collector
+      w('w5', ['arduino-uno','5V'], ['rc','1'], '#ff0000'),
+      w('w6', ['rc','2'],           ['q1','C']),
+      // Emitter → Re → GND
+      w('w7', ['q1','E'],           ['re','1']),
+      w('w8', ['re','2'],           ['arduino-uno','GND'], '#000000'),
+      // AC input into base through coupling R
+      w('w9',  ['sg1','SIG'],       ['rin','1']),
+      w('w10', ['rin','2'],         ['q1','B']),
+      w('w11', ['sg1','GND'],       ['arduino-uno','GND'], '#000000'),
+      // A0 probes the collector
+      w('w12', ['q1','C'],          ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -484,13 +549,24 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-resistor', id: 'rb', x: 380, y: 100, properties: { value: '10000' } },
-      { type: 'wokwi-resistor', id: 'rl', x: 480, y: 100, properties: { value: '100' } },
+      { type: 'wokwi-resistor',  id: 'rb', x: 340, y: 140, properties: { value: '10000' } },
+      { type: 'wokwi-resistor',  id: 'rl', x: 520, y: 60,  properties: { value: '100' } },
+      { type: 'wokwi-bjt-2n2222', id: 'q1', x: 440, y: 140, properties: {} },
+      { type: 'wokwi-bjt-2n2222', id: 'q2', x: 520, y: 220, properties: {} },
     ],
     wires: [
+      // Pin 9 → Rb → Q1 base
       w('w1', ['arduino-uno','9'], ['rb','1']),
-      w('w2', ['arduino-uno','5V'], ['rl','1'], '#ff0000'),
-      w('w3', ['rl','2'], ['arduino-uno','GND'], '#000000'),
+      w('w2', ['rb','2'],          ['q1','B']),
+      // Q1 emitter drives Q2 base (darlington pair)
+      w('w3', ['q1','E'],          ['q2','B']),
+      // Collectors tied together to the load return
+      w('w4', ['q1','C'],          ['q2','C']),
+      // 5V → Rl → combined collectors (high-side load)
+      w('w5', ['arduino-uno','5V'], ['rl','1'], '#ff0000'),
+      w('w6', ['rl','2'],           ['q1','C']),
+      // Q2 emitter → GND
+      w('w7', ['q2','E'],           ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -514,13 +590,32 @@ void loop() {
 }`,
     components: [
       UNO,
+      { type: 'wokwi-potentiometer', id: 'pot', x: 260, y: 160, properties: {} },
       { type: 'wokwi-resistor', id: 'rin', x: 350, y: 100, properties: { value: '1000' } },
-      { type: 'wokwi-resistor', id: 'rf', x: 350, y: 200, properties: { value: '10000' } },
+      { type: 'wokwi-resistor', id: 'rf',  x: 450, y: 100, properties: { value: '10000' } },
+      // IN+ bias divider — two 10k from 5V / GND keep IN+ at 2.5V
+      { type: 'wokwi-resistor', id: 'rbp1', x: 350, y: 240, properties: { value: '10000' } },
+      { type: 'wokwi-resistor', id: 'rbp2', x: 350, y: 320, properties: { value: '10000' } },
+      { type: 'wokwi-opamp-lm358', id: 'u1', x: 460, y: 200, properties: {} },
     ],
     wires: [
-      w('w1', ['rin','2'], ['rf','1']),
-      w('w2', ['rf','2'], ['arduino-uno','A1'], '#ffaa00'),
-      w('w3', ['rin','1'], ['arduino-uno','A0'], '#ffaa00'),
+      // Pot → Vin (A0 probes the input)
+      w('w1',  ['arduino-uno','5V'], ['pot','VCC'], '#ff0000'),
+      w('w2',  ['pot','GND'],        ['arduino-uno','GND'], '#000000'),
+      w('w3',  ['pot','SIG'],        ['arduino-uno','A0'], '#ffaa00'),
+      // Vin → Rin → IN-
+      w('w4',  ['pot','SIG'],        ['rin','1']),
+      w('w5',  ['rin','2'],          ['u1','IN-']),
+      // Feedback Rf from OUT → IN-
+      w('w6',  ['u1','OUT'],         ['rf','1']),
+      w('w7',  ['rf','2'],           ['u1','IN-']),
+      // IN+ biased at Vcc/2
+      w('w8',  ['arduino-uno','5V'], ['rbp1','1'], '#ff0000'),
+      w('w9',  ['rbp1','2'],         ['u1','IN+']),
+      w('w10', ['u1','IN+'],         ['rbp2','1']),
+      w('w11', ['rbp2','2'],         ['arduino-uno','GND'], '#000000'),
+      // A1 probes the output
+      w('w12', ['u1','OUT'],         ['arduino-uno','A1'], '#ffaa00'),
     ],
   },
 
@@ -541,12 +636,16 @@ void loop() {
     components: [
       UNO,
       { type: 'wokwi-potentiometer', id: 'pot', x: 350, y: 160, properties: {} },
+      { type: 'wokwi-opamp-lm358', id: 'u1', x: 470, y: 160, properties: {} },
     ],
     wires: [
       w('w1', ['arduino-uno','5V'], ['pot','VCC'], '#ff0000'),
-      w('w2', ['pot','GND'], ['arduino-uno','GND'], '#000000'),
-      w('w3', ['pot','SIG'], ['arduino-uno','A0'], '#ffaa00'),
-      w('w4', ['pot','SIG'], ['arduino-uno','A1'], '#ffaa00'),
+      w('w2', ['pot','GND'],        ['arduino-uno','GND'], '#000000'),
+      w('w3', ['pot','SIG'],        ['arduino-uno','A0'], '#ffaa00'),
+      // Pot → IN+, OUT tied directly to IN- (100% negative feedback → buffer)
+      w('w4', ['pot','SIG'],        ['u1','IN+']),
+      w('w5', ['u1','OUT'],         ['u1','IN-']),
+      w('w6', ['u1','OUT'],         ['arduino-uno','A1'], '#ffaa00'),
     ],
   },
 
@@ -565,16 +664,29 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-potentiometer', id: 'pot', x: 350, y: 120, properties: {} },
-      { type: 'wokwi-led', id: 'led1', x: 480, y: 200, properties: { color: 'green' } },
-      { type: 'wokwi-resistor', id: 'rl', x: 480, y: 120, properties: { value: '220' } },
+      { type: 'wokwi-potentiometer', id: 'pot',  x: 280, y: 120, properties: {} },
+      // Vref = 2.5V from two 10k from 5V/GND
+      { type: 'wokwi-resistor',      id: 'rref1', x: 280, y: 240, properties: { value: '10000' } },
+      { type: 'wokwi-resistor',      id: 'rref2', x: 280, y: 320, properties: { value: '10000' } },
+      { type: 'wokwi-opamp-lm358',   id: 'u1',   x: 400, y: 160, properties: {} },
+      { type: 'wokwi-resistor',      id: 'rl',   x: 520, y: 80,  properties: { value: '220' } },
+      { type: 'wokwi-led',           id: 'led1', x: 520, y: 200, properties: { color: 'green' } },
     ],
     wires: [
+      // Pot on IN+
       w('w1', ['arduino-uno','5V'], ['pot','VCC'], '#ff0000'),
-      w('w2', ['pot','GND'], ['arduino-uno','GND'], '#000000'),
-      w('w3', ['pot','SIG'], ['arduino-uno','A0'], '#ffaa00'),
-      w('w4', ['rl','2'], ['led1','A']),
-      w('w5', ['led1','C'], ['arduino-uno','GND'], '#000000'),
+      w('w2', ['pot','GND'],        ['arduino-uno','GND'], '#000000'),
+      w('w3', ['pot','SIG'],        ['u1','IN+']),
+      w('w4', ['pot','SIG'],        ['arduino-uno','A0'], '#ffaa00'),
+      // 2.5V reference on IN-
+      w('w5', ['arduino-uno','5V'], ['rref1','1'], '#ff0000'),
+      w('w6', ['rref1','2'],        ['u1','IN-']),
+      w('w7', ['u1','IN-'],         ['rref2','1']),
+      w('w8', ['rref2','2'],        ['arduino-uno','GND'], '#000000'),
+      // OUT → Rl → LED → GND
+      w('w9',  ['u1','OUT'],        ['rl','1']),
+      w('w10', ['rl','2'],          ['led1','A']),
+      w('w11', ['led1','C'],        ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -596,16 +708,40 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-resistor', id: 'r1', x: 350, y: 80, properties: { value: '10000' } },
-      { type: 'wokwi-resistor', id: 'r2', x: 350, y: 160, properties: { value: '100000' } },
-      { type: 'wokwi-resistor', id: 'r3', x: 350, y: 240, properties: { value: '10000' } },
-      { type: 'wokwi-resistor', id: 'r4', x: 350, y: 320, properties: { value: '100000' } },
+      // V1 → R1 → IN-, feedback Rf from OUT
+      { type: 'wokwi-resistor',    id: 'r1', x: 350, y: 80,  properties: { value: '10000' } },
+      { type: 'wokwi-resistor',    id: 'rf', x: 350, y: 160, properties: { value: '100000' } },
+      // V2 → R2 → IN+, Rg from IN+ to GND
+      { type: 'wokwi-resistor',    id: 'r2', x: 350, y: 240, properties: { value: '10000' } },
+      { type: 'wokwi-resistor',    id: 'rg', x: 350, y: 320, properties: { value: '100000' } },
+      { type: 'wokwi-opamp-lm358', id: 'u1', x: 460, y: 160, properties: {} },
+      // Two bias pots to generate V1 and V2 (so the example has real inputs)
+      { type: 'wokwi-potentiometer', id: 'pot1', x: 240, y: 80,  properties: {} },
+      { type: 'wokwi-potentiometer', id: 'pot2', x: 240, y: 240, properties: {} },
     ],
     wires: [
-      w('w1', ['r1','1'], ['arduino-uno','A0'], '#ffaa00'),
-      w('w2', ['r3','1'], ['arduino-uno','A1'], '#ffaa00'),
-      w('w3', ['r1','2'], ['r2','1']),
-      w('w4', ['r2','2'], ['arduino-uno','A2'], '#ffaa00'),
+      // Pot1 provides V1
+      w('w1', ['arduino-uno','5V'], ['pot1','VCC'], '#ff0000'),
+      w('w2', ['pot1','GND'],       ['arduino-uno','GND'], '#000000'),
+      w('w3', ['pot1','SIG'],       ['arduino-uno','A0'], '#ffaa00'),
+      // Pot2 provides V2
+      w('w4', ['arduino-uno','5V'], ['pot2','VCC'], '#ff0000'),
+      w('w5', ['pot2','GND'],       ['arduino-uno','GND'], '#000000'),
+      w('w6', ['pot2','SIG'],       ['arduino-uno','A1'], '#ffaa00'),
+      // V1 → R1 → IN-
+      w('w7', ['pot1','SIG'],       ['r1','1']),
+      w('w8', ['r1','2'],           ['u1','IN-']),
+      // Rf from OUT to IN-
+      w('w9',  ['u1','OUT'],        ['rf','1']),
+      w('w10', ['rf','2'],          ['u1','IN-']),
+      // V2 → R2 → IN+
+      w('w11', ['pot2','SIG'],      ['r2','1']),
+      w('w12', ['r2','2'],          ['u1','IN+']),
+      // Rg from IN+ to GND
+      w('w13', ['u1','IN+'],        ['rg','1']),
+      w('w14', ['rg','2'],          ['arduino-uno','GND'], '#000000'),
+      // A2 probes OUT
+      w('w15', ['u1','OUT'],        ['arduino-uno','A2'], '#ffaa00'),
     ],
   },
 
@@ -624,17 +760,32 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-potentiometer', id: 'pot', x: 350, y: 160, properties: {} },
-      { type: 'wokwi-resistor', id: 'rin', x: 450, y: 100, properties: { value: '10000' } },
-      { type: 'wokwi-resistor', id: 'rfb', x: 450, y: 200, properties: { value: '100000' } },
+      { type: 'wokwi-potentiometer', id: 'pot', x: 260, y: 160, properties: {} },
+      // Vref = 2.5V divider on IN+
+      { type: 'wokwi-resistor', id: 'rref1', x: 370, y: 240, properties: { value: '10000' } },
+      { type: 'wokwi-resistor', id: 'rref2', x: 370, y: 320, properties: { value: '10000' } },
+      // Positive feedback network: Rin from Vref to IN+, Rfb from OUT to IN+
+      { type: 'wokwi-resistor', id: 'rin', x: 420, y: 100, properties: { value: '10000' } },
+      { type: 'wokwi-resistor', id: 'rfb', x: 520, y: 100, properties: { value: '100000' } },
+      { type: 'wokwi-opamp-lm358', id: 'u1', x: 460, y: 200, properties: {} },
     ],
     wires: [
+      // Pot → IN- (inverting input, signal to compare)
       w('w1', ['arduino-uno','5V'], ['pot','VCC'], '#ff0000'),
-      w('w2', ['pot','GND'], ['arduino-uno','GND'], '#000000'),
-      w('w3', ['pot','SIG'], ['rin','1']),
-      w('w4', ['rin','2'], ['rfb','1']),
-      w('w5', ['rfb','2'], ['arduino-uno','A1'], '#ffaa00'),
-      w('w6', ['pot','SIG'], ['arduino-uno','A0'], '#ffaa00'),
+      w('w2', ['pot','GND'],        ['arduino-uno','GND'], '#000000'),
+      w('w3', ['pot','SIG'],        ['u1','IN-']),
+      w('w4', ['pot','SIG'],        ['arduino-uno','A0'], '#ffaa00'),
+      // Vref divider to Rin node (2.5V reference)
+      w('w5', ['arduino-uno','5V'], ['rref1','1'], '#ff0000'),
+      w('w6', ['rref1','2'],        ['rin','1']),
+      w('w7', ['rin','1'],          ['rref2','1']),
+      w('w8', ['rref2','2'],        ['arduino-uno','GND'], '#000000'),
+      // Rin → IN+, and Rfb from OUT → IN+ (positive feedback → hysteresis)
+      w('w9',  ['rin','2'],         ['u1','IN+']),
+      w('w10', ['u1','OUT'],        ['rfb','1']),
+      w('w11', ['rfb','2'],         ['u1','IN+']),
+      // A1 probes OUT
+      w('w12', ['u1','OUT'],        ['arduino-uno','A1'], '#ffaa00'),
     ],
   },
 
@@ -647,28 +798,36 @@ void loop() {
     title: 'AND Gate Alarm',
     description: 'Buzzer sounds only when BOTH buttons are pressed (AND logic).',
     category: 'circuits', difficulty: 'beginner',
-    code: `// AND gate alarm — both buttons must be pressed
-void setup() { pinMode(2, INPUT_PULLUP); pinMode(3, INPUT_PULLUP); pinMode(8, OUTPUT); }
+    code: `// AND gate alarm — MCU buffers buttons, physical AND gate drives LED
+void setup() {
+  pinMode(2, INPUT_PULLUP); pinMode(3, INPUT_PULLUP);
+  pinMode(5, OUTPUT);       pinMode(6, OUTPUT);
+}
 void loop() {
-  bool a = !digitalRead(2);
-  bool b = !digitalRead(3);
-  digitalWrite(8, a && b ? HIGH : LOW);
+  digitalWrite(5, !digitalRead(2)); // HIGH when btn1 pressed
+  digitalWrite(6, !digitalRead(3)); // HIGH when btn2 pressed
 }`,
     components: [
       UNO,
-      { type: 'wokwi-pushbutton', id: 'btn1', x: 350, y: 80, properties: {} },
-      { type: 'wokwi-pushbutton', id: 'btn2', x: 350, y: 180, properties: {} },
-      { type: 'wokwi-led', id: 'led1', x: 480, y: 130, properties: { color: 'red' } },
-      { type: 'wokwi-resistor', id: 'rl', x: 480, y: 60, properties: { value: '220' } },
+      { type: 'wokwi-pushbutton', id: 'btn1', x: 260, y: 80,  properties: {} },
+      { type: 'wokwi-pushbutton', id: 'btn2', x: 260, y: 180, properties: {} },
+      { type: 'wokwi-logic-gate-and', id: 'u1', x: 400, y: 130, properties: {} },
+      { type: 'wokwi-resistor', id: 'rl',   x: 520, y: 60,  properties: { value: '220' } },
+      { type: 'wokwi-led',      id: 'led1', x: 520, y: 160, properties: { color: 'red' } },
     ],
     wires: [
+      // Buttons → MCU inputs (pin 2 / 3)
       w('w1', ['arduino-uno','2'], ['btn1','1.l']),
-      w('w2', ['btn1','2.l'], ['arduino-uno','GND'], '#000000'),
+      w('w2', ['btn1','2.l'],      ['arduino-uno','GND'], '#000000'),
       w('w3', ['arduino-uno','3'], ['btn2','1.l']),
-      w('w4', ['btn2','2.l'], ['arduino-uno','GND'], '#000000'),
-      w('w5', ['arduino-uno','8'], ['rl','1']),
-      w('w6', ['rl','2'], ['led1','A']),
-      w('w7', ['led1','C'], ['arduino-uno','GND'], '#000000'),
+      w('w4', ['btn2','2.l'],      ['arduino-uno','GND'], '#000000'),
+      // MCU output pins drive gate inputs
+      w('w5', ['arduino-uno','5'], ['u1','A']),
+      w('w6', ['arduino-uno','6'], ['u1','B']),
+      // Gate Y → Rl → LED → GND
+      w('w7', ['u1','Y'],          ['rl','1']),
+      w('w8', ['rl','2'],          ['led1','A']),
+      w('w9', ['led1','C'],        ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -677,22 +836,35 @@ void loop() {
     title: 'XOR Toggle Detector',
     description: 'XOR gate detects when two switches are in different positions.',
     category: 'circuits', difficulty: 'beginner',
-    code: `// XOR — LED on when switches differ
-void setup() { pinMode(2,INPUT_PULLUP); pinMode(3,INPUT_PULLUP); pinMode(13,OUTPUT); }
+    code: `// XOR — LED on when switches differ (physical XOR gate drives LED)
+void setup() {
+  pinMode(2, INPUT_PULLUP); pinMode(3, INPUT_PULLUP);
+  pinMode(5, OUTPUT);       pinMode(6, OUTPUT);
+}
 void loop() {
-  bool a = !digitalRead(2), b = !digitalRead(3);
-  digitalWrite(13, a != b);
+  digitalWrite(5, !digitalRead(2));
+  digitalWrite(6, !digitalRead(3));
 }`,
     components: [
       UNO,
-      { type: 'wokwi-pushbutton', id: 'sw1', x: 350, y: 80, properties: {} },
-      { type: 'wokwi-pushbutton', id: 'sw2', x: 350, y: 180, properties: {} },
+      { type: 'wokwi-pushbutton', id: 'sw1', x: 260, y: 80,  properties: {} },
+      { type: 'wokwi-pushbutton', id: 'sw2', x: 260, y: 180, properties: {} },
+      { type: 'wokwi-logic-gate-xor', id: 'u1', x: 400, y: 130, properties: {} },
+      { type: 'wokwi-resistor', id: 'rl',   x: 520, y: 60,  properties: { value: '220' } },
+      { type: 'wokwi-led',      id: 'led1', x: 520, y: 160, properties: { color: 'yellow' } },
     ],
     wires: [
       w('w1', ['arduino-uno','2'], ['sw1','1.l']),
-      w('w2', ['sw1','2.l'], ['arduino-uno','GND'], '#000000'),
+      w('w2', ['sw1','2.l'],       ['arduino-uno','GND'], '#000000'),
       w('w3', ['arduino-uno','3'], ['sw2','1.l']),
-      w('w4', ['sw2','2.l'], ['arduino-uno','GND'], '#000000'),
+      w('w4', ['sw2','2.l'],       ['arduino-uno','GND'], '#000000'),
+      // MCU → XOR inputs
+      w('w5', ['arduino-uno','5'], ['u1','A']),
+      w('w6', ['arduino-uno','6'], ['u1','B']),
+      // XOR Y → LED
+      w('w7', ['u1','Y'],          ['rl','1']),
+      w('w8', ['rl','2'],          ['led1','A']),
+      w('w9', ['led1','C'],        ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -715,19 +887,41 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-pushbutton', id: 'setBtn', x: 350, y: 80, properties: {} },
-      { type: 'wokwi-pushbutton', id: 'rstBtn', x: 350, y: 180, properties: {} },
-      { type: 'wokwi-led', id: 'qled', x: 480, y: 130, properties: { color: 'green' } },
-      { type: 'wokwi-resistor', id: 'rl', x: 480, y: 60, properties: { value: '220' } },
+      { type: 'wokwi-pushbutton', id: 'setBtn', x: 260, y: 80,  properties: {} },
+      { type: 'wokwi-pushbutton', id: 'rstBtn', x: 260, y: 240, properties: {} },
+      // Pull-ups so S' and R' rest HIGH; pressing a button pulls LOW
+      { type: 'wokwi-resistor', id: 'rpuS', x: 320, y: 40,  properties: { value: '10000' } },
+      { type: 'wokwi-resistor', id: 'rpuR', x: 320, y: 280, properties: { value: '10000' } },
+      // Cross-coupled NANDs
+      { type: 'wokwi-logic-gate-nand', id: 'g1', x: 420, y: 100, properties: {} },
+      { type: 'wokwi-logic-gate-nand', id: 'g2', x: 420, y: 220, properties: {} },
+      { type: 'wokwi-resistor', id: 'rl',   x: 540, y: 60,  properties: { value: '220' } },
+      { type: 'wokwi-led',      id: 'qled', x: 540, y: 160, properties: { color: 'green' } },
     ],
     wires: [
-      w('w1', ['arduino-uno','2'], ['setBtn','1.l']),
-      w('w2', ['setBtn','2.l'], ['arduino-uno','GND'], '#000000'),
-      w('w3', ['arduino-uno','3'], ['rstBtn','1.l']),
-      w('w4', ['rstBtn','2.l'], ['arduino-uno','GND'], '#000000'),
-      w('w5', ['arduino-uno','13'], ['rl','1']),
-      w('w6', ['rl','2'], ['qled','A']),
-      w('w7', ['qled','C'], ['arduino-uno','GND'], '#000000'),
+      // S' / R' pull-ups to 5V
+      w('w1', ['arduino-uno','5V'], ['rpuS','1'], '#ff0000'),
+      w('w2', ['rpuS','2'],         ['setBtn','1.l']),
+      w('w3', ['setBtn','2.l'],     ['arduino-uno','GND'], '#000000'),
+      w('w4', ['arduino-uno','5V'], ['rpuR','1'], '#ff0000'),
+      w('w5', ['rpuR','2'],         ['rstBtn','1.l']),
+      w('w6', ['rstBtn','2.l'],     ['arduino-uno','GND'], '#000000'),
+      // MCU can also read S' and R' (pin 2 / 3)
+      w('w7', ['rpuS','2'],         ['arduino-uno','2'], '#ffaa00'),
+      w('w8', ['rpuR','2'],         ['arduino-uno','3'], '#ffaa00'),
+      // NAND1: inputs S' + Q', output Q
+      w('w9',  ['rpuS','2'],        ['g1','A']),
+      // NAND2: inputs R' + Q, output Q'
+      w('w10', ['rpuR','2'],        ['g2','A']),
+      // Cross-couple
+      w('w11', ['g1','Y'],          ['g2','B']),
+      w('w12', ['g2','Y'],          ['g1','B']),
+      // Q → LED
+      w('w13', ['g1','Y'],          ['rl','1']),
+      w('w14', ['rl','2'],          ['qled','A']),
+      w('w15', ['qled','C'],        ['arduino-uno','GND'], '#000000'),
+      // Also route Q to Arduino pin 13 (software mirror)
+      w('w16', ['g1','Y'],          ['arduino-uno','13'], '#ffaa00'),
     ],
   },
 
@@ -842,14 +1036,25 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-resistor', id: 'rb', x: 380, y: 100, properties: { value: '1000' } },
-      { type: 'wokwi-led', id: 'led1', x: 500, y: 200, properties: { color: 'red' } },
-      { type: 'wokwi-resistor', id: 'rl', x: 500, y: 120, properties: { value: '220' } },
+      { type: 'wokwi-resistor', id: 'rb', x: 340, y: 140, properties: { value: '1000' } },
+      { type: 'wokwi-bjt-2n2222', id: 'q1', x: 420, y: 200, properties: {} },
+      { type: 'wokwi-relay', id: 'rly', x: 520, y: 140, properties: { coil_voltage: 5 } },
+      { type: 'wokwi-resistor', id: 'rl',   x: 640, y: 60,  properties: { value: '220' } },
+      { type: 'wokwi-led',      id: 'led1', x: 640, y: 160, properties: { color: 'red' } },
     ],
     wires: [
+      // Pin 9 → Rb → Q1 base (NPN low-side driver for the relay coil)
       w('w1', ['arduino-uno','9'], ['rb','1']),
-      w('w2', ['rl','2'], ['led1','A']),
-      w('w3', ['led1','C'], ['arduino-uno','GND'], '#000000'),
+      w('w2', ['rb','2'],          ['q1','B']),
+      // 5V → relay COIL+ ; COIL- → collector ; emitter → GND
+      w('w3', ['arduino-uno','5V'], ['rly','COIL+'], '#ff0000'),
+      w('w4', ['rly','COIL-'],      ['q1','C']),
+      w('w5', ['q1','E'],           ['arduino-uno','GND'], '#000000'),
+      // Switched load: COM → Rl → LED → GND, NO → 5V (so pressed NO closes 5V to LED)
+      w('w6', ['arduino-uno','5V'], ['rly','NO'], '#ff0000'),
+      w('w7', ['rly','COM'],        ['rl','1']),
+      w('w8', ['rl','2'],           ['led1','A']),
+      w('w9', ['led1','C'],         ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -870,13 +1075,20 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-resistor', id: 'rled', x: 380, y: 80, properties: { value: '270' } },
-      { type: 'wokwi-resistor', id: 'rpull', x: 500, y: 80, properties: { value: '10000' } },
+      { type: 'wokwi-resistor',  id: 'rled',  x: 340, y: 80,  properties: { value: '270' } },
+      { type: 'wokwi-opto-4n25', id: 'u1',    x: 450, y: 120, properties: {} },
+      { type: 'wokwi-resistor',  id: 'rpull', x: 560, y: 80,  properties: { value: '10000' } },
     ],
     wires: [
+      // Drive side: pin 9 → Rled → LED anode (AN), cathode → GND
       w('w1', ['arduino-uno','9'], ['rled','1']),
-      w('w2', ['arduino-uno','5V'], ['rpull','1'], '#ff0000'),
-      w('w3', ['rpull','2'], ['arduino-uno','A0'], '#ffaa00'),
+      w('w2', ['rled','2'],        ['u1','AN']),
+      w('w3', ['u1','CAT'],        ['arduino-uno','GND'], '#000000'),
+      // Receive side: 5V → Rpull → collector, emitter → GND; A0 probes collector
+      w('w4', ['arduino-uno','5V'], ['rpull','1'], '#ff0000'),
+      w('w5', ['rpull','2'],        ['u1','COL']),
+      w('w6', ['u1','COL'],         ['arduino-uno','A0'], '#ffaa00'),
+      w('w7', ['u1','EMIT'],        ['arduino-uno','GND'], '#000000'),
     ],
   },
 
@@ -901,10 +1113,24 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-resistor', id: 'rm', x: 450, y: 200, properties: { value: '10' } },
+      { type: 'wokwi-motor-driver-l293d', id: 'u1', x: 420, y: 140, properties: {} },
+      // Simple resistive motor model (5Ω winding)
+      { type: 'wokwi-resistor', id: 'rm', x: 560, y: 200, properties: { value: '5' } },
     ],
     wires: [
-      w('w1', ['rm','2'], ['arduino-uno','GND'], '#000000'),
+      // Control signals from Arduino
+      w('w1', ['arduino-uno','9'], ['u1','EN1']),
+      w('w2', ['arduino-uno','7'], ['u1','IN1']),
+      w('w3', ['arduino-uno','8'], ['u1','IN2']),
+      // Logic supply VCC1 = 5V, motor supply VCC2 = 5V (toy example)
+      w('w4', ['arduino-uno','5V'], ['u1','VCC1'], '#ff0000'),
+      w('w5', ['arduino-uno','5V'], ['u1','VCC2'], '#ff0000'),
+      // Shared GND pins
+      w('w6', ['u1','GND.1'], ['arduino-uno','GND'], '#000000'),
+      w('w7', ['u1','GND.2'], ['arduino-uno','GND'], '#000000'),
+      // Motor between OUT1 and OUT2
+      w('w8', ['u1','OUT1'], ['rm','1']),
+      w('w9', ['u1','OUT2'], ['rm','2']),
     ],
   },
 
@@ -928,12 +1154,27 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-potentiometer', id: 'pot', x: 350, y: 200, properties: {} },
+      { type: 'wokwi-potentiometer', id: 'pot', x: 260, y: 200, properties: {} },
+      { type: 'wokwi-motor-driver-l293d', id: 'u1', x: 420, y: 140, properties: {} },
+      { type: 'wokwi-resistor', id: 'rm', x: 560, y: 200, properties: { value: '5' } },
     ],
     wires: [
+      // Pot → A0
       w('w1', ['arduino-uno','5V'], ['pot','VCC'], '#ff0000'),
-      w('w2', ['pot','GND'], ['arduino-uno','GND'], '#000000'),
-      w('w3', ['pot','SIG'], ['arduino-uno','A0'], '#ffaa00'),
+      w('w2', ['pot','GND'],        ['arduino-uno','GND'], '#000000'),
+      w('w3', ['pot','SIG'],        ['arduino-uno','A0'], '#ffaa00'),
+      // L293D control
+      w('w4', ['arduino-uno','9'],  ['u1','EN1']),
+      w('w5', ['arduino-uno','7'],  ['u1','IN1']),
+      w('w6', ['arduino-uno','8'],  ['u1','IN2']),
+      // Power rails + GND
+      w('w7',  ['arduino-uno','5V'], ['u1','VCC1'], '#ff0000'),
+      w('w8',  ['arduino-uno','5V'], ['u1','VCC2'], '#ff0000'),
+      w('w9',  ['u1','GND.1'],       ['arduino-uno','GND'], '#000000'),
+      w('w10', ['u1','GND.2'],       ['arduino-uno','GND'], '#000000'),
+      // Motor between OUT1 / OUT2
+      w('w11', ['u1','OUT1'], ['rm','1']),
+      w('w12', ['u1','OUT2'], ['rm','2']),
     ],
   },
 
@@ -956,11 +1197,19 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-resistor', id: 'rload', x: 420, y: 160, properties: { value: '1000' } },
+      { type: 'wokwi-battery-9v', id: 'bat', x: 260, y: 200, properties: {} },
+      { type: 'wokwi-reg-7805',   id: 'u1',  x: 380, y: 160, properties: {} },
+      { type: 'wokwi-resistor',   id: 'rload', x: 500, y: 160, properties: { value: '1000' } },
     ],
     wires: [
-      w('w1', ['rload','1'], ['arduino-uno','A0'], '#ffaa00'),
-      w('w2', ['rload','2'], ['arduino-uno','GND'], '#000000'),
+      // Battery + → VIN ; battery − / GND pin → GND
+      w('w1', ['bat','+'], ['u1','VIN'], '#ff0000'),
+      w('w2', ['bat','−'], ['u1','GND'], '#000000'),
+      w('w3', ['u1','GND'], ['arduino-uno','GND'], '#000000'),
+      // Regulated output → load → GND, A0 probes
+      w('w4', ['u1','VOUT'], ['rload','1'], '#ff0000'),
+      w('w5', ['rload','2'], ['arduino-uno','GND'], '#000000'),
+      w('w6', ['u1','VOUT'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -979,13 +1228,27 @@ void loop() {
 }`,
     components: [
       UNO,
-      { type: 'wokwi-resistor', id: 'r1', x: 380, y: 100, properties: { value: '240' } },
-      { type: 'wokwi-resistor', id: 'r2', x: 380, y: 200, properties: { value: '720' } },
+      { type: 'wokwi-battery-9v', id: 'bat', x: 240, y: 220, properties: {} },
+      { type: 'wokwi-reg-lm317',  id: 'u1',  x: 360, y: 140, properties: {} },
+      // R1 = 240Ω between VOUT and ADJ, R2 = 720Ω between ADJ and GND
+      // Vout = 1.25 * (1 + R2/R1) = 5.0V
+      { type: 'wokwi-resistor',   id: 'r1',  x: 480, y: 100, properties: { value: '240' } },
+      { type: 'wokwi-resistor',   id: 'r2',  x: 480, y: 200, properties: { value: '720' } },
+      { type: 'wokwi-resistor',   id: 'rload', x: 600, y: 100, properties: { value: '1000' } },
     ],
     wires: [
-      w('w1', ['r1','2'], ['r2','1']),
-      w('w2', ['r2','2'], ['arduino-uno','GND'], '#000000'),
-      w('w3', ['r1','1'], ['arduino-uno','A0'], '#ffaa00'),
+      // Battery into LM317 VIN
+      w('w1', ['bat','+'],   ['u1','VIN'], '#ff0000'),
+      w('w2', ['bat','−'],   ['arduino-uno','GND'], '#000000'),
+      // VOUT → R1 → ADJ → R2 → GND
+      w('w3', ['u1','VOUT'], ['r1','1'], '#ff0000'),
+      w('w4', ['r1','2'],    ['u1','ADJ']),
+      w('w5', ['u1','ADJ'],  ['r2','1']),
+      w('w6', ['r2','2'],    ['arduino-uno','GND'], '#000000'),
+      // Load + ADC probe
+      w('w7', ['u1','VOUT'], ['rload','1'], '#ff0000'),
+      w('w8', ['rload','2'], ['arduino-uno','GND'], '#000000'),
+      w('w9', ['u1','VOUT'], ['arduino-uno','A0'], '#ffaa00'),
     ],
   },
 
@@ -1098,20 +1361,16 @@ void loop() {
 }`,
     components: [
       { type: 'wokwi-arduino-nano', id: 'arduino-nano', x: 100, y: 100, properties: {} },
-      { type: 'wokwi-ntc-temperature-sensor', id: 'ntc', x: 350, y: 80, properties: { temperature: '22' } },
-      { type: 'wokwi-resistor', id: 'rntc', x: 350, y: 160, properties: { value: '10000' } },
-      { type: 'wokwi-photoresistor-sensor', id: 'ldr', x: 350, y: 240, properties: { lux: '300' } },
-      { type: 'wokwi-resistor', id: 'rldr', x: 350, y: 320, properties: { value: '10000' } },
+      { type: 'wokwi-ntc-temperature-sensor', id: 'ntc', x: 350, y: 100, properties: { temperature: '22' } },
+      { type: 'wokwi-photoresistor-sensor', id: 'ldr', x: 350, y: 260, properties: { lux: '300' } },
     ],
     wires: [
-      w('w1', ['arduino-nano','5V'], ['ntc','1'], '#ff0000'),
-      w('w2', ['ntc','2'], ['rntc','1']),
-      w('w3', ['rntc','2'], ['arduino-nano','GND'], '#000000'),
-      w('w4', ['ntc','2'], ['arduino-nano','A0'], '#ffaa00'),
-      w('w5', ['arduino-nano','5V'], ['ldr','VCC'], '#ff0000'),
-      w('w6', ['ldr','SIG'], ['rldr','1']),
-      w('w7', ['rldr','2'], ['arduino-nano','GND'], '#000000'),
-      w('w8', ['ldr','SIG'], ['arduino-nano','A1'], '#ffaa00'),
+      w('w1', ['arduino-nano','5V'],  ['ntc','VCC'], '#ff0000'),
+      w('w2', ['ntc','GND'],          ['arduino-nano','GND'], '#000000'),
+      w('w3', ['ntc','OUT'],          ['arduino-nano','A0'], '#ffaa00'),
+      w('w4', ['arduino-nano','5V'],  ['ldr','VCC'], '#ff0000'),
+      w('w5', ['ldr','GND'],          ['arduino-nano','GND'], '#000000'),
+      w('w6', ['ldr','AO'],           ['arduino-nano','A1'], '#ffaa00'),
     ],
   },
 

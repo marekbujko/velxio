@@ -279,6 +279,110 @@ M1 d g 0 0 M_X L=2u W=0.1
 .model M2N7000 NMOS(Level=1 Vto=1.6 Kp=50u Lambda=0.01)   ; with L=2u W=200u
 ```
 
+## G-R. 490 Hz PWM starves the SPICE solver via the store-change debounce
+
+**Symptom (2026-04-20):** In the `mosfet-pwm-led` example, the LED does
+nothing while the sketch runs (`analogWrite(9, 0..255..0)` ramp), then
+**lights up the instant the user presses Stop**. Static circuits (no PWM)
+simulate correctly. Affects every circuit where a SPICE-owned component is
+wired directly to an MCU pin that the sketch drives with `analogWrite()`.
+
+**Why "works on stop" was the decisive clue:** stopping the AVR is the only
+event that halts the stream of pin-change callbacks. SPICE is clearly
+*capable* of solving the circuit — the solve just never runs while the
+firing rate is high. That points straight at the scheduler's debounce.
+
+**Root cause — a feedback loop between the digital side and the solver:**
+
+1. `SimulatorCanvas`'s generic wire subscription calls
+   `pinManager.onPinChange(pin, …)` for every component wired directly to a
+   board pin. When the pin toggles, the callback calls
+   `updateComponentState(component.id, state)` unless the component has
+   `attachEvents` registered in `PartSimulationRegistry` (`hasSelfManagedVisuals`).
+2. `updateComponentState` writes `properties.state` / `properties.value` on
+   the target component — producing a **new `components` array** in the
+   Zustand store.
+3. `wireElectricalSolver` subscribes to the store and calls `maybeSolve()`
+   whenever `state.components !== prev.components`.
+4. `maybeSolve()` → `triggerSolve()` → `circuitScheduler.requestSolve()`
+   which **resets the 50 ms debounce timer** on every call.
+5. Under AVR's hardware PWM on pin 9 (Timer1, 490 Hz), pin 9 toggles every
+   ~2 ms. The 50 ms debounce is reset ~20× before it can ever expire, so
+   `drain()` never runs and ngspice is never invoked.
+6. On Stop the toggles cease, 50 ms later the debounce finally fires, the
+   solve completes with the last-seen PWM duty, and the LED paints bright —
+   which is exactly what the user reported seeing.
+
+The periodic 200 ms solver timer in `subscribeToStore` is unable to rescue
+this: it calls the same `maybeSolve` which passes through the same debounce
+and is swamped by the pin-toggle stream.
+
+**Minimal reproducer (in-browser):** any two-terminal SPICE-mapped
+component whose only connection to the MCU is a single GPIO wire is enough.
+MOSFET gate → pin 9 is the canonical case, but a resistor from pin 3 to a
+cap, a diode anode on pin 5, an opamp `IN+` on pin 6, a logic-gate input on
+pin 11, all behaved identically in testing.
+
+**Diagnostic that exonerated ngspice:** running `buildNetlist` + `runNetlist`
+with a fixed `duty=1.0` inside a Vitest harness that mirrors
+`CircuitScheduler.drain()` produced a correct branch current
+(`v_led1_sense` = 6.8 mA at 5 V gate) in 380 ms. SPICE was fine — the
+pipeline upstream of the scheduler was broken.
+[`frontend/src/__tests__/spice-mosfet-diag.test.ts`](../../frontend/src/__tests__/spice-mosfet-diag.test.ts)
+is the permanent form of that probe.
+
+**Fix — one generic rule in `SimulatorCanvas`:** treat every SPICE-owned
+component as authoritative-to-SPICE. The legacy digital echo is skipped
+for them so no pin toggle ever mutates `components`.
+
+```typescript
+// frontend/src/components/simulator/SimulatorCanvas.tsx
+const logic = PartSimulationRegistry.get(component.metadataId);
+const spiceOwned = isSpiceMapped(component.metadataId);
+const hasSelfManagedVisuals = !!(logic && logic.attachEvents) || spiceOwned;
+```
+
+That single line protects every current and future mapper in
+`componentToSpice.ts` (R/L/C, diodes, LEDs, BJTs, MOSFETs, op-amps,
+regulators, optos, relays, L293D, logic gates, instruments, signal
+generators, switches, pots, NTCs, photo-resistors, photodiodes, batteries).
+SPICE samples the true pin state from `PinManager` at the 200 ms periodic
+tick — quasi-DC equivalent of the PWM, which is the correct simplification
+for an operating-point solver.
+
+**What was explicitly rejected:**
+
+- *Register every active device with a no-op `attachEvents`.* It works but
+  flips `isInteractive` in `DynamicComponent` → cursor becomes `pointer`
+  over MOSFETs, BJTs, and opamps — misleading the user into thinking they
+  can click them. Using `isSpiceMapped(…)` at the one call site that cares
+  is the cleaner demarcation.
+- *Lengthen the debounce until it's longer than the PWM period.* Any debounce
+  long enough to survive 490 Hz would also make wire edits feel sluggish.
+  The problem is that digital pin toggles were being treated as circuit
+  edits in the first place.
+- *Dedup at the `triggerSolve` level based on JSON input.* Already in place
+  — but it runs *after* `requestSolve`, so the debounce has already been
+  reset. Moving the dedup earlier doesn't help either, because the input
+  genuinely does change (`properties.state` flips) even when nothing that
+  SPICE cares about has.
+
+**Unrelated cleanup done at the same time:** removed a leftover
+`console.log('[WirePin] …')` inside the wire subscription loop that was
+firing at the same rate as the pin subscriptions and filling the devtools
+console.
+
+**Fidelity note:** no fidelity was sacrificed. SPICE is still the single
+source of truth for voltages and currents on every SPICE-mapped component.
+Digital-only parts (pushbuttons, membrane keypads, DIP switches, slide
+switches, I²C displays, servos, buzzers) continue through the unchanged
+`attachEvents` path.
+
+**Regression guard:**
+[`frontend/src/__tests__/spice-mosfet-pwm.test.ts`](../../frontend/src/__tests__/spice-mosfet-pwm.test.ts)
+asserts monotonic LED current across the ramp; the diag test above
+asserts the scheduler-filtered keys still land in `branchCurrents`.
+
 ## What to check first when something fails
 
 1. **Console stderr** from ngspice often contains the root cause ("singular matrix", "model not found", "syntax error at line X").
