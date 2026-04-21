@@ -89,9 +89,9 @@ async function solveAndGetLedCurrent(
 describe('NPN Transistor Switch — diagnostic', () => {
   it('pin 9 HIGH: LED conducts ~20 mA', { timeout: 30_000 }, async () => {
     const { current, netlist } = await solveAndGetLedCurrent('HIGH');
-     
+
     console.log('\n=== NETLIST (pin9=HIGH) ===\n' + netlist);
-     
+
     console.log('LED current (HIGH):', current);
     expect(current).toBeGreaterThan(5e-3);
   });
@@ -101,9 +101,9 @@ describe('NPN Transistor Switch — diagnostic', () => {
     { timeout: 30_000 },
     async () => {
       const { current, netlist } = await solveAndGetLedCurrent('LOW');
-       
+
       console.log('\n=== NETLIST (pin9=LOW) ===\n' + netlist);
-       
+
       console.log('LED current (LOW):', current);
       // If this fails with >1µA, we have reproduced the bug.
       expect(current).toBeLessThan(1e-6);

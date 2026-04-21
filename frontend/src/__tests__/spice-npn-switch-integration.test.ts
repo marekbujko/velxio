@@ -148,20 +148,20 @@ describe('NPN LED switch — integration pipeline', () => {
         avr.runCycles(1);
         if (pm.getPinState(9)) highCycle = i;
       }
-       
+
       console.log('pin 9 went HIGH after', highCycle, 'cycles');
       expect(highCycle).toBeGreaterThanOrEqual(0);
 
       // Solve with pin 9 HIGH and assert LED conducts.
       const highPins = collectPinStates(pm, npnSwitchWires());
-       
+
       console.log('pinStates after HIGH write:', highPins);
       expect(highPins['9']).toEqual({ type: 'digital', v: 5 });
 
       const { netlist: nlHigh } = buildNetlist(npnSwitchInput(highPins));
       const cookedHigh = await runNetlist(nlHigh);
       const iHigh = Math.abs(cookedHigh.dcValue('i(v_led1_sense)'));
-       
+
       console.log('HIGH: LED current =', iHigh, 'A');
       expect(iHigh).toBeGreaterThan(5e-3);
 
@@ -171,21 +171,21 @@ describe('NPN LED switch — integration pipeline', () => {
         avr.runCycles(1);
         if (!pm.getPinState(9)) lowCycle = i;
       }
-       
+
       console.log('pin 9 went LOW after', lowCycle, 'additional cycles');
       expect(lowCycle).toBeGreaterThanOrEqual(0);
 
       const lowPins = collectPinStates(pm, npnSwitchWires());
-       
+
       console.log('pinStates after LOW write:', lowPins);
       expect(lowPins['9']).toBeUndefined();
 
       const { netlist: nlLow } = buildNetlist(npnSwitchInput(lowPins));
-       
+
       console.log('\n=== NETLIST (after AVR LOW) ===\n' + nlLow);
       const cookedLow = await runNetlist(nlLow);
       const iLow = Math.abs(cookedLow.dcValue('i(v_led1_sense)'));
-       
+
       console.log('LOW: LED current =', iLow, 'A');
       expect(iLow).toBeLessThan(1e-6);
     },

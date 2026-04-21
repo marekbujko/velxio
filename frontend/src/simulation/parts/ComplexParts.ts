@@ -350,7 +350,7 @@ PartSimulationRegistry.register('servo', {
       const pinManager = (avrSimulator as any).pinManager as
         | import('../PinManager').PinManager
         | undefined;
-       
+
       const hasCpuCycles =
         typeof (avrSimulator as any).getCurrentCycles === 'function' &&
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -381,14 +381,14 @@ PartSimulationRegistry.register('servo', {
         | undefined;
       if (pinManager) {
         let riseTime = -1; // cycle count at last rising edge
-         
+
         const getCycles = () =>
           typeof (avrSimulator as any).getCurrentCycles === 'function'
             ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
               ((avrSimulator as any).getCurrentCycles() as number)
             : // eslint-disable-next-line @typescript-eslint/no-explicit-any
               (((avrSimulator as any).cpu?.cycles ?? 0) as number);
-         
+
         const clockHz =
           typeof (avrSimulator as any).getClockHz === 'function'
             ? // eslint-disable-next-line @typescript-eslint/no-explicit-any

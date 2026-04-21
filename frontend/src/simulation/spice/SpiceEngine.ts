@@ -48,7 +48,7 @@ async function bootEngine(): Promise<Simulation> {
     await sim.start();
     singleton = sim;
     const dt = performance.now() - t0;
-     
+
     console.log(`[SpiceEngine] boot in ${dt.toFixed(0)}ms`);
     return sim;
   })();
@@ -82,7 +82,6 @@ export async function runNetlist(netlist: string): Promise<SpiceResult> {
 
   const dt = performance.now() - t0;
   if (dt > 200) {
-     
     console.log(`[SpiceEngine] slow solve: ${dt.toFixed(0)}ms`);
   }
 

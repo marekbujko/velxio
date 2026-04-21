@@ -645,7 +645,7 @@ PartSimulationRegistry.register('hc-sr04', {
     let distanceCm = parseFloat(el.distance) || 10; // default distance in cm
 
     // ── ESP32 path: delegate protocol to backend QEMU worker ──
-     
+
     const handledNatively =
       typeof (simulator as any).registerSensor === 'function' &&
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -679,7 +679,6 @@ PartSimulationRegistry.register('hc-sr04', {
     const cleanup = simulator.pinManager.onPinChange(trigPin, (_: number, state: boolean) => {
       if (!state) return; // only react on TRIG HIGH
       if (typeof simulator.schedulePinChange === 'function') {
-         
         const clockHz: number =
           typeof (simulator as any).getClockHz === 'function'
             ? // eslint-disable-next-line @typescript-eslint/no-explicit-any

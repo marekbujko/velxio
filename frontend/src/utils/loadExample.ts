@@ -90,7 +90,7 @@ export async function loadExample(
 
       if (eb.code) {
         const AVR_BOARDS = ['arduino-uno', 'arduino-nano', 'arduino-mega', 'attiny85'];
-      const filename = AVR_BOARDS.includes(boardId) ? 'sketch.ino' : 'main.cpp';
+        const filename = AVR_BOARDS.includes(boardId) ? 'sketch.ino' : 'main.cpp';
         useEditorStore.getState().setActiveGroup(board.activeFileGroupId);
         useEditorStore.getState().loadFiles([{ name: filename, content: eb.code }]);
       }

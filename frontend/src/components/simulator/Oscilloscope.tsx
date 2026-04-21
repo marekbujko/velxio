@@ -221,7 +221,6 @@ const ChannelCanvas: React.FC<ChannelCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (ctx) ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
     drawWaveform(canvas, samples, channel.color, windowEndMs, windowMs);
-     
   }, [samples, channel.color, windowEndMs, windowMs]);
 
   return (
@@ -256,7 +255,6 @@ const RulerCanvas: React.FC<RulerCanvasProps> = ({ windowEndMs, windowMs, timeDi
     const ctx = canvas.getContext('2d');
     if (ctx) ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
     drawRuler(canvas, windowEndMs, windowMs, timeDivMs);
-     
   }, [windowEndMs, windowMs, timeDivMs]);
 
   return (

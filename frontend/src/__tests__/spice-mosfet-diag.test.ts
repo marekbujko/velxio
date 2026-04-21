@@ -78,11 +78,11 @@ describe('MOSFET PWM LED — scheduler key diagnostic', () => {
     { timeout: 30_000 },
     async () => {
       const { netlist } = buildNetlist(buildInput(1.0)); // 100% duty = full on
-       
+
       console.log('\n=== NETLIST ===\n' + netlist + '\n==============');
 
       const cooked = await runNetlist(netlist);
-       
+
       console.log('RAW variableNames:', cooked.variableNames);
 
       // Mirror CircuitScheduler.drain() exactly
@@ -94,9 +94,9 @@ describe('MOSFET PWM LED — scheduler key diagnostic', () => {
           if (Number.isFinite(i)) branchCurrents[src] = i;
         }
       }
-       
+
       console.log('branchCurrents keys (scheduler-filtered):', Object.keys(branchCurrents));
-       
+
       console.log('v_led1_sense:', branchCurrents['v_led1_sense']);
 
       expect(Object.keys(branchCurrents)).toContain('v_led1_sense');

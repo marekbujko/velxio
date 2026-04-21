@@ -83,7 +83,6 @@ export const PiTerminal: React.FC<PiTerminalProps> = ({ boardId }) => {
       termRef.current = null;
       fitAddonRef.current = null;
     };
-     
   }, [boardId]);
 
   // ResizeObserver → refit terminal when container size changes

@@ -638,7 +638,7 @@ PartSimulationRegistry.register('dht22', {
     // After the MCU releases DATA HIGH and we begin responding, we ignore all
     // pin-change callbacks until the full waveform has been emitted.
     // DHT22 response is ~5 ms; gate for ~12.5 ms scaled to the CPU clock.
-     
+
     const clockHz: number =
       typeof (simulator as any).getClockHz === 'function'
         ? // eslint-disable-next-line @typescript-eslint/no-explicit-any

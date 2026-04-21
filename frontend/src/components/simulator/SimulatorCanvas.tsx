@@ -1287,7 +1287,6 @@ export const SimulatorCanvas = () => {
     }, 150);
 
     return () => clearTimeout(timer);
-     
   }, [components.length]);
 
   // Render component using dynamic renderer
