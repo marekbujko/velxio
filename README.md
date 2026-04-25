@@ -303,8 +303,12 @@ cd velxio
 > git clone --depth=1 https://github.com/wokwi/avr8js.git avr8js
 > git clone --depth=1 https://github.com/wokwi/wokwi-elements.git wokwi-elements
 > git clone --depth=1 https://github.com/wokwi/rp2040js.git rp2040js
+> git clone --depth=1 https://github.com/wokwi/wokwi-boards.git wokwi-boards
 > cd ..
 > ```
+> `wokwi-boards` ships static SVG assets imported by the ESP32 / Pi Pico W
+> board components — without it the frontend build fails on missing
+> `board.svg` imports.
 
 **Build the Wokwi libraries** (required before running the frontend):
 
@@ -312,6 +316,7 @@ cd velxio
 cd wokwi-libs/avr8js && npm install && npm run build && cd ../..
 cd wokwi-libs/wokwi-elements && npm install && npm run build && cd ../..
 cd wokwi-libs/rp2040js && npm install && npm run build && cd ../..
+# wokwi-boards is asset-only (SVGs) — no install or build needed.
 ```
 
 ```bash
